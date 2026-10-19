@@ -168,6 +168,7 @@
     waitingOnCommand = true;
     queueJumpInProgress = true;
     const snapshot = lastState.queueSnapshot;
+    let failure = null;
     status("Skipping to " + track.title + "…");
     try {
       const response = await fetch(API + "/api/queue-jump", {
@@ -178,11 +179,14 @@
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Spotify could not verify queue jump");
     } catch (error) {
-      status(error.message || "Queue jump stopped", true);
+      // A successful earlier skip cannot be undone. Keep the failure visible
+      // after refreshing the real playback state; never imply full success.
+      failure = error.message || "Queue jump stopped";
     } finally {
       queueJumpInProgress = false;
       waitingOnCommand = false;
       await refresh();
+      if (failure) status(failure, true);
     }
   }
   async function command(action, value) {
