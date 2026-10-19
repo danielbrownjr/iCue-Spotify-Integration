@@ -100,8 +100,18 @@ export async function performQueueJump(
       queue = await request("/me/player/queue");
       ensureActive(playback, deviceId);
       const now = queueUri(playback.item);
-      if (now !== expected[step] && now !== expected[step + 1])
-        throw queueJumpError("Spotify switched tracks unexpectedly; stopped jumping.");
+      if (now !== expected[step] && now !== expected[step + 1]) {
+        // Include only the original queue position, never raw URIs or tokens,
+        // so field reports can distinguish unexpected skips from unrelated songs.
+        const originalPosition = observedSuffix.indexOf(now);
+        const reported = originalPosition < 0
+          ? "a track outside the original queue"
+          : "original queue song #" + (originalPosition + 1);
+        throw queueJumpError("After Next command " + (step + 1) + "/" +
+          (selection.index + 1) + ", Spotify reported " + reported +
+          " instead of queue song #" + (step + 1) +
+          ". Stopped safely; check the current song before retrying.");
+      }
       if (now !== expected[step + 1]) continue;
       sawExpectedTrack = true;
       const following = observedSuffix.slice(step + 1);
