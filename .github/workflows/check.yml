@@ -31,10 +31,13 @@ jobs:
           node-version: "22"
       - name: Run Node tests including native Windows DPAPI roundtrip
         run: npm test
-      - name: Parse autostart installer without registering a task
+      - name: Validate Windows startup scripts and synthetic hidden launcher
         shell: pwsh
         run: |
-          $tokens = $null
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'scripts/companion-autostart.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
-          if ($errors.Count -gt 0) { throw ($errors | Out-String) }
+          foreach ($relative in @('scripts/companion-autostart.ps1', 'scripts/start-companion-hidden.ps1', 'test/hidden-launcher.test.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $relative), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) { throw ("PowerShell parse failure in " + $relative + ": " + ($errors | Out-String)) }
+          }
+          & (Join-Path $PWD 'test/hidden-launcher.test.ps1')
