@@ -44,6 +44,18 @@ The resulting `.icuewidget` can then be imported into iCUE. The original 0.1.0 w
 
 Shows cover artwork, title, artists, album, elapsed/duration, queue, active device, volume, shuffle and repeat. Tap controls or seek on the progress bar. The widget polls playback about every 3.5 seconds; the companion caches playback for 3 seconds and the queue for 15 seconds. API rate-limit responses are respected with backoff. A pending queue/API problem is shown as a warning rather than quietly displaying a fabricated queue.
 
+### Play an upcoming song without rebuilding the queue (v0.1.2)
+
+The first **five** entries under **Up Next** have a play button in the index cell (the number swaps to ▶ on hover/focus, or is shown directly on touch devices). Selecting one advances through Spotify's actual queue using **one Next operation at a time**. The songs **before** the selected entry are consumed as skipped songs. The remaining entries are left to Spotify's native queue rather than copied into a new context.
+
+Because Spotify's Web API does not support atomic jump-to-queue-position, this is a **best-effort, bounded operation**, not a guarantee of preserving every queue item. Each skip is verified against a fresh playback/queue read before another command is sent. The action aborts on a changed device, unexpected track or queue order, repeated URIs in the traversed prefix, Spotify rejection/rate-limit, or missing confirmation. Aborting after an accepted skip cannot undo earlier skips. The selected row must still match the widget's recent queue fingerprint; a stale view fails without altering playback.
+
+- Requires active playing playback on a Spotify Connect device; paused or unavailable playback is rejected rather than silently starting a new context.
+- Rows beyond the first five show their number but do not enable a queue jump. This deliberate cap limits API traffic and surprises.
+- Another Spotify client can change the queue at any time. Spotify does not guarantee ordering of separate Player commands, even when requests are awaited; the companion checks state and stops on mismatches.
+- No changes to the OAuth scopes, repeat/shuffle controls, companion startup, or native queue editing support. This is **skip-through**, not arbitrary native queue reordering.
+- New v0.1.2 behavior has automated tests but **still needs user-supervised live playback/queue acceptance on the actual XENEON EDGE**. Test with disposable songs first.
+
 ### Shuffle and repeat behavior
 
 The repeat button cycles through **Off → Repeat all (`context`) → Repeat one (`track`) → Off**. Off is dimmed; repeat all is orange; repeat one is orange with a visible `1`. The button's accessibility label and tooltip identify the selected mode. These 0.1.1 indicators are code/CI-validated but still require confirmation on the real display after importing the updated widget.
@@ -85,6 +97,7 @@ As of 2026-10-19 (feature branch `feat/spotify-edge-dashboard`):
 - Artwork URL host support is restricted to known Spotify CDN hosts and may need adjustment if Spotify changes hosts.
 - No automatic Spotify device-selection UI in this first slice.
 - Smart Shuffle cannot be distinguished or explicitly selected through the current Spotify Web API; shuffle control stays boolean on/off.
+- Queue-row play uses a maximum of five verified Next commands; it consumes earlier songs and may stop after a partial skip if Spotify changes the queue or device. It cannot guarantee an atomic position jump. The new 0.1.2 feature needs live acceptance.
 
 ## Development policy
 
