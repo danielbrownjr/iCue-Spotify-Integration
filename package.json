@@ -1,6 +1,6 @@
 {
   "name": "icue-spotify-integration",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "type": "module",
   "description": "XENEON EDGE Spotify Now Playing and queue widget with a loopback companion",
