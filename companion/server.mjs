@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { SCOPES, REDIRECT_URI, SPOTIFY_API, normalizePlayback } from "./spotify.mjs";
 import { performControl } from "./control.mjs";
+import { createRefreshTokenStore } from "./token-store.mjs";
 
 import { allowWidgetOrigin } from "./cors.mjs";
 
@@ -14,8 +15,10 @@ const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID || "30545ff0123e4db089d85774cde2
 const CONFIG_DIR = process.env.LOCALAPPDATA
   ? join(process.env.LOCALAPPDATA, "iCueSpotifyIntegration")
   : join(homedir(), ".icue-spotify");
+const tokenStore = createRefreshTokenStore(join(CONFIG_DIR, "spotify-refresh.dpapi"));
 let pairingKey;
 let credentials = null;
+let refreshInFlight = null;
 let authRequest = null;
 let playbackCache = { expires: 0, value: null };
 let queueCache = { expires: 0, value: null };
@@ -77,7 +80,11 @@ async function exchangeToken(parameters) {
     method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(parameters)
   });
-  if (!response.ok) throw new Error("Spotify token exchange returned HTTP " + response.status);
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw Object.assign(new Error("Spotify token exchange returned HTTP " + response.status),
+      { status: response.status, oauthError: errorBody?.error || null });
+  }
   return response.json();
 }
 
@@ -93,7 +100,9 @@ async function callback(url, res) {
   try {
     const tokens = await exchangeToken({ grant_type: "authorization_code", code,
       redirect_uri: REDIRECT_URI, client_id: CLIENT_ID, code_verifier: verifier });
-    if (!tokens.access_token || !tokens.refresh_token) throw new Error("Missing tokens");
+    if (!tokens.access_token || !tokens.refresh_token || !Number.isFinite(tokens.expires_in))
+      throw new Error("Missing tokens");
+    if (tokenStore.supported) await tokenStore.save(tokens.refresh_token);
     credentials = { access: tokens.access_token, refresh: tokens.refresh_token,
       expires: Date.now() + tokens.expires_in * 1000 };
     playbackCache.expires = queueCache.expires = 0;
@@ -104,15 +113,38 @@ async function callback(url, res) {
   }
 }
 
+async function refreshAccessToken() {
+  const previous = credentials.refresh;
+  try {
+    const tokens = await exchangeToken({ grant_type: "refresh_token",
+      refresh_token: previous, client_id: CLIENT_ID });
+    if (!tokens.access_token || !Number.isFinite(tokens.expires_in))
+      throw new Error("Token refresh returned no usable access token");
+    const rotated = tokens.refresh_token || previous;
+    credentials = { access: tokens.access_token, refresh: rotated,
+      expires: Date.now() + tokens.expires_in * 1000 };
+    if (tokens.refresh_token && tokens.refresh_token !== previous && tokenStore.supported) {
+      try { await tokenStore.save(rotated); }
+      catch { console.error("Unable to persist rotated Spotify credential; reconnect may be required after restart"); }
+    }
+    return credentials.access;
+  } catch (error) {
+    if (error.oauthError === "invalid_grant") {
+      credentials = null;
+      await tokenStore.clear().catch(() => {});
+      throw Object.assign(new Error("Spotify authorization expired. Open /connect to reconnect."), { status: 401 });
+    }
+    throw error;
+  }
+}
+
 async function getAccessToken() {
   if (!credentials) throw Object.assign(new Error("Connect Spotify first"), { status: 401 });
-  if (Date.now() < credentials.expires - 60000) return credentials.access;
-  const tokens = await exchangeToken({ grant_type: "refresh_token",
-    refresh_token: credentials.refresh, client_id: CLIENT_ID });
-  if (!tokens.access_token) throw new Error("Token refresh failed");
-  credentials = { access: tokens.access_token, refresh: tokens.refresh_token || credentials.refresh,
-    expires: Date.now() + tokens.expires_in * 1000 };
-  return credentials.access;
+  if (credentials.access && Date.now() < credentials.expires - 60000) return credentials.access;
+  if (!refreshInFlight) {
+    refreshInFlight = refreshAccessToken().finally(() => { refreshInFlight = null; });
+  }
+  return refreshInFlight;
 }
 
 async function spotifyRequest(path, method = "GET") {
@@ -216,6 +248,14 @@ async function handle(req, res) {
 }
 
 await loadPairingKey();
+if (tokenStore.supported) {
+  try {
+    const refresh = await tokenStore.load();
+    if (refresh) credentials = { access: null, refresh, expires: 0 };
+  } catch (error) {
+    console.error(error.message + "; open /connect to reauthorize Spotify");
+  }
+}
 http.createServer((req, res) => {
   handle(req, res).catch((error) => {
     console.error("Request failed:", error.message);
@@ -226,5 +266,7 @@ http.createServer((req, res) => {
   console.log("iCUE Spotify companion: http://" + HOST + ":" + PORT);
   console.log("Connect Spotify: http://" + HOST + ":" + PORT + "/connect");
   console.log("Widget pairing key: " + pairingKey);
-  console.log("Tokens are memory-only and never written to disk. Reconnect after restarting.");
+  console.log(tokenStore.supported
+    ? "Windows user-protected Spotify refresh token enabled; no need to reconnect after an ordinary restart."
+    : "Persistent credentials are Windows-only; reconnect after restarting.");
 });
