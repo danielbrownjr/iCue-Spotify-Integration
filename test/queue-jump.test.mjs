@@ -195,7 +195,7 @@ test("a changed song after the selected target is detected before further skips"
   };
   await assert.rejects(performQueueJump({ index: 3, snapshot: f.snapshot() }, request, {
     wait: async () => {}
-  }), /changed the remaining queue/);
+  }), /did not confirm the remaining queue/);
   assert.equal(f.writes, 1);
 });
 
@@ -214,4 +214,52 @@ test("new recommendations appended after the original queue are tolerated", asyn
   });
   assert.equal(result.skipped, 3);
   assert.equal(f.position, 3);
+});
+
+test("playback can advance before the queue endpoint catches up without aborting multi-skip", async () => {
+  const f = fixture();
+  let queueLag = 0;
+  let oldQueue = null;
+  let lastPosition = 0;
+  const request = async (path, method) => {
+    if (method === "POST") {
+      oldQueue = f.queue();
+      await f.request(path, method);
+      queueLag = 2;
+      return null;
+    }
+    const result = await f.request(path, method);
+    if (path === "/me/player/queue" && f.position > lastPosition) {
+      lastPosition = f.position;
+    }
+    if (path === "/me/player/queue" && queueLag > 0 && f.position > 0) {
+      queueLag--;
+      return oldQueue;
+    }
+    return result;
+  };
+  const waits = [];
+  const result = await performQueueJump({ index: 2, snapshot: f.snapshot() }, request, {
+    wait: async (ms) => { waits.push(ms); }
+  });
+  assert.equal(result.skipped, 3);
+  assert.equal(f.writes, 3);
+  assert.equal(f.position, 3);
+  assert.ok(waits.length > 3, "Each skip needed additional state confirmation");
+});
+
+test("persistent post-skip queue disagreement stops after one write, not five", async () => {
+  const f = fixture();
+  let fixedQueue = null;
+  const request = async (path, method) => {
+    if (path === "/me/player/queue" && f.position > 0)
+      return fixedQueue;
+    if (method === "POST") fixedQueue = f.queue();
+    return f.request(path, method);
+  };
+  await assert.rejects(performQueueJump({ index: 4, snapshot: f.snapshot() }, request, {
+    wait: async () => {}
+  }), /did not confirm the remaining queue after 1 skip/);
+  assert.equal(f.writes, 1);
+  assert.equal(f.position, 1);
 });
