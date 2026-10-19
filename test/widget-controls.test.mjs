@@ -45,6 +45,10 @@ function dashboardHarness() {
     if (url.endsWith("/api/state")) {
       return { ok: true, json: async () => ({ ...state }) };
     }
+    if (url.endsWith("/api/queue-jump")) {
+      commands.push({ action: "queue-jump", ...JSON.parse(options.body) });
+      return { ok: true, json: async () => ({ ok: true, skipped: 1 }) };
+    }
     if (url.endsWith("/api/control")) {
       const command = JSON.parse(options.body);
       commands.push(command);
@@ -112,4 +116,42 @@ test("shuffle status does not claim to distinguish Smart Shuffle", async () => {
   await settle();
   assert.equal(elements.shuffle.attributes["aria-pressed"], "true");
   assert.match(elements.shuffle.title, /Smart Shuffle status is not available/);
+});
+
+test("the first five queued rows expose a play-over-number action, deeper entries stay disabled", async () => {
+  const { elements, state, window, commands } = dashboardHarness();
+  const snapshot = "s".repeat(43);
+  state.queueSnapshot = snapshot;
+  state.queue = Array.from({ length: 7 }, (_, i) => ({
+    uri: "spotify:track:" + i, title: "Queued song " + (i + 1),
+    artist: "Artist", durationMs: 123000
+  }));
+  window.icueEvents.onDataUpdated();
+  await settle();
+  const rows = elements.queue.children;
+  assert.equal(rows.length, 7);
+  const buttonFor = (i) => rows[i].children[0].children[0];
+  assert.equal(buttonFor(0).disabled, false);
+  assert.equal(buttonFor(4).disabled, false);
+  assert.equal(buttonFor(5).disabled, true);
+  assert.match(buttonFor(2).attributes["aria-label"], /Play Queued song 3 from queue/);
+  assert.equal(buttonFor(2).children[0].textContent, "03");
+  assert.equal(buttonFor(2).children[1].textContent, "▶");
+  buttonFor(2).listeners.get("click")();
+  await settle();
+  assert.equal(commands.length, 1);
+  assert.deepEqual(commands[0], { action: "queue-jump", index: 2, snapshot });
+});
+
+test("missing current queue snapshot disables jump actions", async () => {
+  const { elements, state, window, commands } = dashboardHarness();
+  state.queue = [{ uri: "spotify:track:test", title: "Test" }];
+  state.queueSnapshot = null;
+  window.icueEvents.onDataUpdated();
+  await settle();
+  const button = elements.queue.children[0].children[0].children[0];
+  assert.equal(button.disabled, true);
+  button.listeners.get("click")();
+  await settle();
+  assert.equal(commands.length, 0);
 });
