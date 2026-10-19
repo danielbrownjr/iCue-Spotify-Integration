@@ -1,0 +1,13 @@
+{
+  "name": "icue-spotify-integration",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "XENEON EDGE Spotify Now Playing and queue widget with a loopback companion",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node companion/server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check companion/server.mjs && node --check companion/spotify.mjs && node --check widget/scripts/widget.js"
+  }
+}

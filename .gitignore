@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.icuewidget
+.DS_Store
+coverage/
+companion/pairing-key
+companion/token*

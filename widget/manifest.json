@@ -1,0 +1,16 @@
+{
+  "author": "Daniel Brown",
+  "id": "com.danielbrown.icuespotify",
+  "name": "Spotify Queue Dashboard",
+  "description": "Interactive Spotify Now Playing and queue for Corsair XENEON EDGE",
+  "version": "0.1.0",
+  "preview_icon": "resources/icon.svg",
+  "min_app_version": "5.52",
+  "min_framework_version": "1.9.0",
+  "os": [{ "platform": "windows" }],
+  "supported_devices": [{ "type": "dashboard_lcd" }],
+  "interactive": true,
+  "permissions": [
+    { "type": "url", "domain": "127.0.0.1", "port": 8765 }
+  ]
+}

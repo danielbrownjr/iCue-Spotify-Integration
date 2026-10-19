@@ -1,0 +1,22 @@
+name: Validate
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  node-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check syntax
+        run: npm run check
+      - name: Run tests
+        run: npm test
+      - name: Validate iCUE widget
+        run: |
+          npm install -g icuewidget-cli
+          icuewidget validate widget
