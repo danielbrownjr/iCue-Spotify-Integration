@@ -147,7 +147,7 @@ test("an unexpected track change does not trigger further skips", async () => {
   const f = fixture();
   await assert.rejects(performQueueJump({ index: 3, snapshot: f.snapshot() }, f.request, {
     wait: async () => f.setPosition(7)
-  }), /switched tracks unexpectedly/);
+  }), /After Next command 1\/4.*original queue song #7.*instead of queue song #1/);
   assert.equal(f.writes, 1);
 });
 
@@ -262,4 +262,52 @@ test("persistent post-skip queue disagreement stops after one write, not five", 
   }), /did not confirm the remaining queue after 1 skip/);
   assert.equal(f.writes, 1);
   assert.equal(f.position, 1);
+});
+
+test("diagnostics identify when Spotify advances farther than the requested next song", async () => {
+  const f = fixture();
+  let skipped = false;
+  const request = async (path, method) => {
+    if (method === "POST") skipped = true;
+    if (path === "/me/player" && skipped) {
+      f.setPosition(3);
+      skipped = false;
+    }
+    return f.request(path, method);
+  };
+  await assert.rejects(
+    performQueueJump({ index: 4, snapshot: f.snapshot() }, request, { wait: async () => {} }),
+    (error) => {
+      assert.equal(error.status, 409);
+      assert.match(error.message, /After Next command 1\/5/);
+      assert.match(error.message, /original queue song #3 instead of queue song #1/);
+      assert.doesNotMatch(error.message, /spotify:track/);
+      return true;
+    }
+  );
+  assert.equal(f.writes, 1);
+  assert.equal(f.position, 3);
+});
+
+test("diagnostics distinguish an unrelated Spotify track from a later queue entry", async () => {
+  const f = fixture();
+  let skipped = false;
+  const request = async (path, method) => {
+    if (method === "POST") skipped = true;
+    if (path === "/me/player" && skipped) {
+      skipped = false;
+      return { ...f.playback(), item: { uri: "spotify:track:unrelated" } };
+    }
+    return f.request(path, method);
+  };
+  await assert.rejects(
+    performQueueJump({ index: 2, snapshot: f.snapshot() }, request, { wait: async () => {} }),
+    (error) => {
+      assert.match(error.message, /After Next command 1\/3/);
+      assert.match(error.message, /outside the original queue/);
+      assert.doesNotMatch(error.message, /spotify:track/);
+      return true;
+    }
+  );
+  assert.equal(f.writes, 1);
 });
