@@ -92,6 +92,8 @@ export async function performQueueJump(
     await request("/me/player/next", "POST");
 
     let confirmed = false;
+    let sawExpectedTrack = false;
+    let sawUnexpectedQueue = false;
     for (const delay of [300, 450, 650, 900, 1200]) {
       await wait(delay);
       playback = await request("/me/player");
@@ -101,16 +103,27 @@ export async function performQueueJump(
       if (now !== expected[step] && now !== expected[step + 1])
         throw queueJumpError("Spotify switched tracks unexpectedly; stopped jumping.");
       if (now !== expected[step + 1]) continue;
+      sawExpectedTrack = true;
       const following = observedSuffix.slice(step + 1);
       const currentUpcoming = queueEntries(queue).slice(0, following.length).map(queueUri);
       if (currentUpcoming.length !== following.length ||
-          currentUpcoming.some((uri, i) => uri !== following[i]))
-        throw queueJumpError("Spotify changed the remaining queue; stopped jumping.");
+          currentUpcoming.some((uri, i) => uri !== following[i])) {
+        // Playback and queue endpoints can reflect the same accepted Next
+        // at different times. Do not issue ANOTHER Next until both agree.
+        // Persistent mismatch still stops safely after bounded polling.
+        sawUnexpectedQueue = true;
+        continue;
+      }
       confirmed = true;
       break;
     }
-    if (!confirmed)
-      throw queueJumpError("Spotify did not confirm the skip in time. Check playback before retrying.");
+    if (!confirmed) {
+      if (sawExpectedTrack && sawUnexpectedQueue)
+        throw queueJumpError("Spotify did not confirm the remaining queue after " +
+          (step + 1) + " skip(s); stopped before another skip.");
+      throw queueJumpError("Spotify did not confirm the skip in time after " +
+        (step + 1) + " command(s). Check playback before retrying.");
+    }
   }
   return { ok: true, skipped: selection.index + 1 };
 }
