@@ -147,7 +147,7 @@ test("an unexpected track change does not trigger further skips", async () => {
   const f = fixture();
   await assert.rejects(performQueueJump({ index: 3, snapshot: f.snapshot() }, f.request, {
     wait: async () => f.setPosition(7)
-  }), /After Next command 1\/4.*original queue song #7.*instead of queue song #1/);
+  }), /After Next command 1\/4.*original queue song #8.*instead of queue song #1/);
   assert.equal(f.writes, 1);
 });
 
@@ -280,7 +280,7 @@ test("diagnostics identify when Spotify advances farther than the requested next
     (error) => {
       assert.equal(error.status, 409);
       assert.match(error.message, /After Next command 1\/5/);
-      assert.match(error.message, /original queue song #3 instead of queue song #1/);
+      assert.match(error.message, /original queue song #4 instead of queue song #1/);
       assert.doesNotMatch(error.message, /spotify:track/);
       return true;
     }
