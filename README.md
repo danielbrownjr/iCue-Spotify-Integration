@@ -54,7 +54,9 @@ Because Spotify's Web API does not support atomic jump-to-queue-position, this i
 - Rows beyond the first five show their number but do not enable a queue jump. This deliberate cap limits API traffic and surprises.
 - Another Spotify client can change the queue at any time. Spotify does not guarantee ordering of separate Player commands, even when requests are awaited; the companion checks state and stops on mismatches.
 - No changes to the OAuth scopes, repeat/shuffle controls, companion startup, or native queue editing support. This is **skip-through**, not arbitrary native queue reordering.
-- New v0.1.2 behavior has automated tests but **still needs user-supervised live playback/queue acceptance on the actual XENEON EDGE**. Test with disposable songs first.
+- **Observed live defect (2026-10-19):** playing upcoming row 01 worked, but selecting row 03/05 advanced to 01 and then stopped with `Spotify switched tracks unexpectedly; stopped jumping.` The cause is not established yet. CI acceptance is not physical acceptance.
+- **v0.1.3 diagnostic update:** reports which Next command and which original queue position (if any) Spotify reported. It does not bypass unexpected-track checks or send extra skips. Queue-jump errors remain visible in the widget warning area for 60 seconds instead of disappearing at the next 3.5-second refresh. Rebuild and import the new widget **and** restart the updated companion to test; older v0.1.2 UI does not display the persistent warning.
+- Test a disposable queue with shuffle and repeat off; record the error text and actual playing song after tapping 03 or 05. Stop on partial failure, and do not immediately retry.
 
 ### Shuffle and repeat behavior
 
