@@ -1,25 +1,36 @@
 # Native Windows smoke test only. Never registers, stops or changes a Scheduled Task.
 $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$Launcher = Join-Path $RepoRoot 'scripts\start-companion-hidden.ps1'
+$LauncherSource = Join-Path $RepoRoot 'scripts\companion-hidden.cs'
 $Node = (Get-Command node.exe -ErrorAction Stop).Source
 $FixtureDir = Join-Path ([IO.Path]::GetTempPath()) ('icue hidden launcher ' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $FixtureDir -Force | Out-Null
 try {
     $Entry = Join-Path $FixtureDir 'fixture with spaces.mjs'
+    $Launcher = Join-Path $FixtureDir 'companion hidden.exe'
+    & (Join-Path $RepoRoot 'scripts\build-hidden-launcher.ps1') -Source $LauncherSource -Output $Launcher
+    # PE subsystem 2 is Windows GUI, not console (3). This catches the
+    # PowerShell/Windows Terminal delegation issue without relying on hiding.
+    $Binary = [IO.BinaryReader]::new([IO.File]::OpenRead($Launcher))
+    try {
+        $Binary.BaseStream.Position = 0x3c
+        $PeOffset = $Binary.ReadInt32()
+        $Binary.BaseStream.Position = $PeOffset + 24 + 68
+        if ($Binary.ReadUInt16() -ne 2) { throw 'Supervisor must use the Windows GUI subsystem.' }
+    } finally { $Binary.Dispose() }
 
     # Child failures must propagate, allowing Task Scheduler to flag exits.
     Set-Content -LiteralPath $Entry -Value 'process.exit(7);' -Encoding Ascii
-    & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $Launcher -Node $Node -Entry $Entry
-    if ($LASTEXITCODE -ne 7) {
-        throw "Hidden launcher exit code mismatch: expected 7, got $LASTEXITCODE"
+    $Result = Start-Process -FilePath $Launcher -ArgumentList ('"{0}" "{1}"' -f $Node, $Entry) -PassThru -Wait
+    if ($Result.ExitCode -ne 7) {
+        throw "Hidden launcher exit code mismatch: expected 7, got $($Result.ExitCode)"
     }
 
     # Supervisor must stay alive until Node exits rather than launching detached.
     Set-Content -LiteralPath $Entry -Value 'setTimeout(() => process.exit(0), 850);' -Encoding Ascii
     $Timer = [Diagnostics.Stopwatch]::StartNew()
-    & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $Launcher -Node $Node -Entry $Entry
-    $Exit = $LASTEXITCODE
+    $Result = Start-Process -FilePath $Launcher -ArgumentList ('"{0}" "{1}"' -f $Node, $Entry) -PassThru -Wait
+    $Exit = $Result.ExitCode
     $Timer.Stop()
     if ($Exit -ne 0) {
         throw "Hidden launcher successful-child exit mismatch: $Exit"
@@ -35,9 +46,8 @@ try {
     $Supervisor = $null
     $ChildId = $null
     try {
-        $Supervisor = Start-Process -FilePath (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') `
-            -ArgumentList ('-NoLogo -NoProfile -NonInteractive -File "{0}" -Node "{1}" -Entry "{2}"' -f $Launcher, $Node, $Entry) `
-            -WindowStyle Hidden -PassThru
+        $Supervisor = Start-Process -FilePath $Launcher `
+            -ArgumentList ('"{0}" "{1}"' -f $Node, $Entry) -PassThru
         $Deadline = (Get-Date).AddSeconds(15)
         while (-not (Test-Path -LiteralPath $PidFile)) {
             if ($Supervisor.HasExited -or (Get-Date) -gt $Deadline) { throw 'Synthetic child did not start.' }
@@ -45,6 +55,7 @@ try {
         }
         $ChildId = [int](Get-Content -LiteralPath $PidFile -Raw)
         if (-not (Get-Process -Id $ChildId -ErrorAction SilentlyContinue)) { throw 'Synthetic child exited early.' }
+        if ($Supervisor.MainWindowHandle -ne 0) { throw 'Supervisor created a visible window.' }
         Stop-Process -Id $Supervisor.Id -ErrorAction Stop
         $Supervisor.WaitForExit()
         $Deadline = (Get-Date).AddSeconds(5)
@@ -56,7 +67,7 @@ try {
         if ($Supervisor -and -not $Supervisor.HasExited) { Stop-Process -Id $Supervisor.Id -ErrorAction SilentlyContinue }
         if ($ChildId) { Stop-Process -Id $ChildId -ErrorAction SilentlyContinue }
     }
-    Write-Host 'Hidden launcher synthetic exit-code, lifetime and termination smoke tests passed.'
+    Write-Host 'Console-free GUI launcher subsystem, exit-code, lifetime and termination tests passed.'
 } finally {
     Remove-Item -LiteralPath $FixtureDir -Recurse -Force -ErrorAction SilentlyContinue
 }

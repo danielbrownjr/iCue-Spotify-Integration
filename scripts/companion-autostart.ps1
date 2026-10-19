@@ -30,7 +30,9 @@ if ($Status) {
         Write-Host "Autostart task status: $($Task.State)"
         Write-Host "Task principal: $($Task.Principal.UserId)"
         Write-Host "Configured executable: $($Task.Actions[0].Execute)"
-        if ($Task.Actions[0].Execute -match '(?i)powershell\.exe$') {
+        if ($Task.Actions[0].Execute -match '(?i)companion-hidden-[a-f0-9]+\.exe$') {
+            Write-Host 'Launcher: console-free Windows application supervisor.'
+        } elseif ($Task.Actions[0].Execute -match '(?i)powershell\.exe$') {
             Write-Host 'Launcher: hidden PowerShell supervisor.'
         } else {
             Write-Host 'Launcher: visible Node console.'
@@ -76,6 +78,14 @@ if ($InstallHidden) {
     $ScriptDir = Join-Path $InstallDir 'scripts'
     New-Item -ItemType Directory -Path $ScriptDir -Force | Out-Null
     Copy-Item -LiteralPath $LauncherSource -Destination $ScriptDir -Force
+    $NativeSource = Join-Path $PSScriptRoot 'companion-hidden.cs'
+    Copy-Item -LiteralPath $NativeSource -Destination $ScriptDir -Force
+    $SourceVersion = (Get-FileHash -LiteralPath $NativeSource -Algorithm SHA256).Hash.Substring(0, 16).ToLowerInvariant()
+    # Versioned path permits updating registration without replacing a running EXE.
+    $LauncherExecutable = Join-Path $ScriptDir ("companion-hidden-$SourceVersion.exe")
+    if (-not (Test-Path -LiteralPath $LauncherExecutable -PathType Leaf)) {
+        & (Join-Path $PSScriptRoot 'build-hidden-launcher.ps1') -Source $NativeSource -Output $LauncherExecutable
+    }
 }
 
 $Entry = Join-Path $InstallDir 'companion\server.mjs'
@@ -83,14 +93,10 @@ $Entry = Join-Path $InstallDir 'companion\server.mjs'
 if ($LASTEXITCODE -ne 0) { throw 'Copied companion did not pass syntax validation.' }
 $CurrentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 if ($InstallHidden) {
-    $Launcher = Join-Path $InstallDir 'scripts\start-companion-hidden.ps1'
-    $PowerShell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    if (-not (Test-Path -LiteralPath $PowerShell -PathType Leaf)) {
-        throw 'Windows PowerShell is required for hidden startup.'
-    }
-    # Use local per-user script with process-scoped policy, no system policy change.
-    $Arguments = '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -Node "{1}" -Entry "{2}"' -f $Launcher, $Node, $Entry
-    $Action = New-ScheduledTaskAction -Execute $PowerShell -Argument $Arguments -WorkingDirectory $InstallDir
+    # A GUI-subsystem executable never allocates a supervisor console, even
+    # when Windows Terminal is configured as the default console host.
+    $Arguments = '"{0}" "{1}"' -f $Node, $Entry
+    $Action = New-ScheduledTaskAction -Execute $LauncherExecutable -Argument $Arguments -WorkingDirectory $InstallDir
 } else {
     # Original successful console mode, retained for rollback.
     $Action = New-ScheduledTaskAction -Execute $Node -Argument ('"{0}"' -f $Entry) -WorkingDirectory $InstallDir
