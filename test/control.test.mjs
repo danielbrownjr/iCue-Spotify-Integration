@@ -30,7 +30,7 @@ test("missing playback still attempts the command and preserves Spotify errors",
   await assert.rejects(performControl("play", undefined, async (_path, method) => {
     if (!method) return null;
     throw failure;
-  }), (error) => error === failure);
+  }, async () => {}), (error) => error === failure);
 });
 
 test("playback read failures are propagated without sending a command", async () => {
@@ -48,7 +48,42 @@ test("a denied state change remains a 403 error", async () => {
   await assert.rejects(performControl("pause", undefined, async (_path, method) => {
     if (!method) return { is_playing: true };
     throw failure;
-  }), (error) => error === failure);
+  }, async () => {}), (error) => error === failure);
+});
+
+test("a rejected duplicate succeeds only after delayed playback confirms the state", async () => {
+  for (const action of ["play", "pause"]) {
+    let reads = 0;
+    let writes = 0;
+    const waits = [];
+    await performControl(action, undefined, async (_path, method) => {
+      if (method) {
+        writes++;
+        throw Object.assign(new Error("Forbidden"), { status: 403 });
+      }
+      reads++;
+      return { is_playing: reads >= 3 ? action === "play" : action !== "play" };
+    }, async (ms) => { waits.push(ms); });
+    assert.equal(writes, 1);
+    assert.equal(reads, 3);
+    assert.deepEqual(waits, [250, 500]);
+  }
+});
+
+test("state rechecks are bounded and do not hide other errors", async () => {
+  const failure = Object.assign(new Error("Forbidden"), { status: 403 });
+  let reads = 0;
+  await assert.rejects(performControl("pause", undefined, async (_path, method) => {
+    if (method) throw failure;
+    reads++;
+    return { is_playing: true };
+  }, async () => {}), (error) => error === failure);
+  assert.equal(reads, 4);
+  const rateLimit = Object.assign(new Error("Rate limited"), { status: 429 });
+  await assert.rejects(performControl("pause", undefined, async (_path, method) => {
+    if (method) throw rateLimit;
+    return { is_playing: true };
+  }, async () => { assert.fail("Must not recheck rate limits"); }), (error) => error === rateLimit);
 });
 
 test("other controls stay direct and invalid controls never reach Spotify", async () => {
