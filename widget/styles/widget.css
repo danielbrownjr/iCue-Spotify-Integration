@@ -34,6 +34,10 @@ button { cursor: pointer; border: 1px solid transparent; background: #242424; co
 button:active { background: #3c3c3c; }
 button.primary { background: var(--accent-color); color: #111; }
 button.selected { border-color: var(--accent-color); color: var(--accent-color); }
+#repeat { position: relative; }
+#repeat[data-mode="off"] { opacity: .55; }
+#repeat-one { position: absolute; top: .22em; right: .28em; font-size: .42em; font-weight: 800; line-height: 1; }
+#repeat-one[hidden] { display: none; }
 button:disabled { opacity: .35; cursor: not-allowed; }
 .seek { display: flex; align-items: center; gap: calc(var(--layout-unit) * 2); height: calc(var(--layout-unit) * 4.5); flex-shrink: 0; }
 .seek span { width: calc(var(--layout-unit) * 5.5); flex-shrink: 0; color: var(--subtle); font-size: calc(var(--layout-unit) * 1.8); font-variant-numeric: tabular-nums; }
