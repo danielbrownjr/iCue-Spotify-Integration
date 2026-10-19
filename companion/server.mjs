@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { SCOPES, REDIRECT_URI, SPOTIFY_API, normalizePlayback, spotifyControl } from "./spotify.mjs";
 
+import { allowWidgetOrigin } from "./cors.mjs";
+
 const HOST = "127.0.0.1";
 const PORT = 8765;
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID || "30545ff0123e4db089d85774cde21c05";
@@ -155,16 +157,6 @@ async function readState() {
   const art = state.track?.image;
   if (art && art.startsWith("https://")) lastArtwork = art;
   return state;
-}
-
-function allowWidgetOrigin(req, res) {
-  const origin = req.headers.origin;
-  if (origin && origin !== "null" && origin !== "http://127.0.0.1:8765") return false;
-  if (origin) res.setHeader("Access-Control-Allow-Origin", origin);
-  res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Widget-Key");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  return true;
 }
 
 async function readBody(req) {

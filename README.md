@@ -56,7 +56,7 @@ It does **not** request broad internet access, file permissions, microphone, or 
 - The companion listens only on 127.0.0.1, checks the Host and browser Origin headers and requires X-Widget-Key for reading playback state or issuing commands. The key is generated locally, never committed, and must be treated as a local capability token.
 - The companion's OAuth callback validates a one-time state and PKCE code verifier.
 - It accepts only whitelisted transport commands, validates parameters and enforces JSON content type for mutations.
-- CORS allows file-widget ("null") origins and the local companion origin, not arbitrary websites. Since sandboxed pages can also have a null origin, the independent pairing key is essential.
+- CORS allows file-widget ("file://" and "null") origins and the local companion origin, not arbitrary websites. Since sandboxed pages can also have a null origin, the independent pairing key is essential.
 - Token storage is intentionally **memory-only** for this first release candidate.
 - This project is personal/noncommercial. Spotify terms, API availability and development-mode quotas apply.
 
