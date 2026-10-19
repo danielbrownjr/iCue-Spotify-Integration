@@ -38,11 +38,17 @@ If the CLI is installed:
     icuewidget validate widget
     icuewidget package widget
 
-The resulting `.icuewidget` can then be imported into iCUE. The widget has been installed on a real XENEON EDGE, with live Spotify playback and touch play/pause confirmed.
+The resulting `.icuewidget` can then be imported into iCUE. The original 0.1.0 widget was tested on a real XENEON EDGE. **To use the new repeat-mode indicators, build/import the 0.1.1 widget package**; the running companion and existing pairing key can remain unchanged.
 
 ## Widget behavior
 
 Shows cover artwork, title, artists, album, elapsed/duration, queue, active device, volume, shuffle and repeat. Tap controls or seek on the progress bar. The widget polls playback about every 3.5 seconds; the companion caches playback for 3 seconds and the queue for 15 seconds. API rate-limit responses are respected with backoff. A pending queue/API problem is shown as a warning rather than quietly displaying a fabricated queue.
+
+### Shuffle and repeat behavior
+
+The repeat button cycles through **Off → Repeat all (`context`) → Repeat one (`track`) → Off**. Off is dimmed; repeat all is orange; repeat one is orange with a visible `1`. The button's accessibility label and tooltip identify the selected mode. These 0.1.1 indicators are code/CI-validated but still require confirmation on the real display after importing the updated widget.
+
+Shuffle is a simple **on/off** control. Spotify's Web API reports `shuffle_state` as a boolean and the shuffle endpoint accepts only `true` or `false`. Spotify's app also has **Smart Shuffle**, but the API provides no distinct Smart Shuffle status or selection command. The widget therefore cannot accurately identify or cycle that third mode; use the Spotify app for Smart Shuffle.
 
 The widget uses one narrowly scoped network permission:
 
@@ -64,20 +70,21 @@ It does **not** request broad internet access, file permissions, microphone, or 
 
 As of 2026-10-19 (feature branch `feat/spotify-edge-dashboard`):
 
-- **Verified live:** iCUE package installed on a physical XENEON EDGE; user confirms widget displays live Spotify playback, touchscreen play/pause works without the previously reproduced intermittent 403, and the queue can be scrolled without unexpectedly jumping to the top.
+- **Verified live (user acceptance):** iCUE package installed on a physical XENEON EDGE; user confirms live Spotify playback, touchscreen play/pause without the previously reproduced intermittent 403, real queue scrolling without position resets, **seeking, volume, standard shuffle, and repeat playback behavior**. Repeat worked before the visual improvement, but its exact mode was not obvious on-screen.
 - **Verified via local companion:** Spotify PKCE authentication and real playback/queue requests return successfully, with 20 actual upcoming tracks observed and album-art proxy responding successfully.
-- **Automated checks:** Node syntax checks, 15 unit tests, and official `icuewidget validate widget` passed for code head `4c57d512ecc2fc0afb61bcab875a31c2969d1aea` (GitHub Actions run `39237872256`).
-- **Not individually verified on hardware:** seek, volume, shuffle, repeat, complete layout/readability, disconnect/recovery scenarios, and OAuth token refresh. Working play/pause does not by itself prove every control.
+- **Automated checks:** the initial code head `4c57d512ecc2fc0afb61bcab875a31c2969d1aea` passed 15 tests and official iCUE validation (Actions `39237872256`). The subsequent 0.1.1 display update adds regression coverage for distinct repeat states, mode cycling, and Smart Shuffle status messaging; refer to the current PR head's Actions run for exact-head validation.
+- **Not individually verified on hardware:** newly introduced repeat-mode visual indicators in 0.1.1, complete layout/readability, disconnect/recovery scenarios, and OAuth token refresh. Behavioral repeat, seek, volume and shuffle have been user-confirmed.
 - **Runtime constraint:** the companion must keep running; its Spotify access/refresh tokens are memory-only, so restarting it requires Spotify sign-in again. The locally stored pairing key remains valid.
 
 ## Known limitations
 
 - Requires a running local companion; automatic Windows startup is not yet implemented.
-- Touch play/pause and queue scrolling have been confirmed on the XENEON EDGE. Seek, volume, shuffle, repeat, the rest of the touchscreen layout, recovery behavior and actual token refresh have **not** all been individually verified.
+- Touch play/pause, queue scrolling, seeking, volume, standard shuffle, and repeat behavior are user-confirmed on the XENEON EDGE. The new 0.1.1 repeat indicator still needs physical visual acceptance. Recovery behavior and actual token refresh have **not** been individually verified.
 - No queue reorder/removal: Spotify does not offer general queue editing endpoints.
 - Spotify reports some state asynchronously, so skip/pause may take a polling interval to update.
 - Artwork URL host support is restricted to known Spotify CDN hosts and may need adjustment if Spotify changes hosts.
 - No automatic Spotify device-selection UI in this first slice.
+- Smart Shuffle cannot be distinguished or explicitly selected through the current Spotify Web API; shuffle control stays boolean on/off.
 
 ## Development policy
 
