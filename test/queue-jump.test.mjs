@@ -182,3 +182,36 @@ test("refuses to skip when playback is paused, inactive or missing device", asyn
     assert.equal(f.writes, 0);
   }
 });
+
+test("a changed song after the selected target is detected before further skips", async () => {
+  const f = fixture();
+  const request = async (path, method) => {
+    if (path === "/me/player/queue" && f.position > 0) {
+      const altered = f.queue();
+      altered.queue[5].uri = "spotify:track:unexpected-tail";
+      return altered;
+    }
+    return f.request(path, method);
+  };
+  await assert.rejects(performQueueJump({ index: 3, snapshot: f.snapshot() }, request, {
+    wait: async () => {}
+  }), /changed the remaining queue/);
+  assert.equal(f.writes, 1);
+});
+
+test("new recommendations appended after the original queue are tolerated", async () => {
+  const f = fixture();
+  const request = async (path, method) => {
+    if (path === "/me/player/queue" && f.position > 0) {
+      const extended = f.queue();
+      extended.queue.push({ uri: "spotify:track:new-recommendation", type: "track" });
+      return extended;
+    }
+    return f.request(path, method);
+  };
+  const result = await performQueueJump({ index: 2, snapshot: f.snapshot() }, request, {
+    wait: async () => {}
+  });
+  assert.equal(result.skipped, 3);
+  assert.equal(f.position, 3);
+});
