@@ -1,6 +1,6 @@
 # iCUE Spotify Integration
 
-A touch-friendly Spotify Now Playing + **actual queue** widget for the Corsair XENEON EDGE, designed for a **medium horizontal 840×696 iCUE dashboard tile**. The desktop companion runs on Windows at 127.0.0.1:8765. This is a **work-in-progress** and has not yet been tested on the actual device.
+A touch-friendly Spotify Now Playing + **actual queue** widget for the Corsair XENEON EDGE, designed for a **medium horizontal 840×696 iCUE dashboard tile**. The desktop companion runs on Windows at 127.0.0.1:8765. The widget has been imported into iCUE and tested on the XENEON EDGE; see [Verified integration status](#verified-integration-status) for the exact scope of live testing.
 
 ## Prerequisites
 
@@ -38,7 +38,7 @@ If the CLI is installed:
     icuewidget validate widget
     icuewidget package widget
 
-The resulting .icuewidget can then be imported into iCUE. We have not physically tested the package on the XENEON EDGE yet.
+The resulting `.icuewidget` can then be imported into iCUE. The widget has been installed on a real XENEON EDGE, with live Spotify playback and touch play/pause confirmed.
 
 ## Widget behavior
 
@@ -60,10 +60,20 @@ It does **not** request broad internet access, file permissions, microphone, or 
 - Token storage is intentionally **memory-only** for this first release candidate.
 - This project is personal/noncommercial. Spotify terms, API availability and development-mode quotas apply.
 
+## Verified integration status
+
+As of 2026-10-19 (feature branch `feat/spotify-edge-dashboard`):
+
+- **Verified live:** iCUE package installed on a physical XENEON EDGE; user confirms widget displays live Spotify playback, touchscreen play/pause works without the previously reproduced intermittent 403, and the queue can be scrolled without unexpectedly jumping to the top.
+- **Verified via local companion:** Spotify PKCE authentication and real playback/queue requests return successfully, with 20 actual upcoming tracks observed and album-art proxy responding successfully.
+- **Automated checks:** Node syntax checks, 15 unit tests, and official `icuewidget validate widget` passed for code head `4c57d512ecc2fc0afb61bcab875a31c2969d1aea` (GitHub Actions run `39237872256`).
+- **Not individually verified on hardware:** seek, volume, shuffle, repeat, complete layout/readability, disconnect/recovery scenarios, and OAuth token refresh. Working play/pause does not by itself prove every control.
+- **Runtime constraint:** the companion must keep running; its Spotify access/refresh tokens are memory-only, so restarting it requires Spotify sign-in again. The locally stored pairing key remains valid.
+
 ## Known limitations
 
 - Requires a running local companion; automatic Windows startup is not yet implemented.
-- iCUE display, permission prompt, widget package and touch behavior **require physical testing**.
+- Touch play/pause and queue scrolling have been confirmed on the XENEON EDGE. Seek, volume, shuffle, repeat, the rest of the touchscreen layout, recovery behavior and actual token refresh have **not** all been individually verified.
 - No queue reorder/removal: Spotify does not offer general queue editing endpoints.
 - Spotify reports some state asynchronously, so skip/pause may take a polling interval to update.
 - Artwork URL host support is restricted to known Spotify CDN hosts and may need adjustment if Spotify changes hosts.
