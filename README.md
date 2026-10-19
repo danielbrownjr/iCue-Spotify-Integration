@@ -29,7 +29,7 @@ Requested scopes: user-read-playback-state and user-modify-playback-state. The q
 5. Install/package the widget. In its iCUE settings, paste the companion pairing key into **Pairing key**.
 6. Position the widget in a medium horizontal slot on the XENEON EDGE.
 
-The companion **keeps Spotify tokens only in memory**. Restarting it requires revisiting /connect and reauthorizing. This is deliberate for the initial development slice. Later we can provide OS-protected token persistence and startup registration.
+On Windows, this development branch keeps **access tokens in memory** and uses current-user **DPAPI** encryption to save **only the refresh token** in `%LOCALAPPDATA%\iCueSpotifyIntegration\spotify-refresh.dpapi`. After authenticating once with this updated companion, normal companion restarts can refresh without another Spotify login. The preexisting 0.1.1 companion was memory-only, so the first upgrade still requires one normal `/connect` authorization. On non-Windows development hosts the companion remains memory-only.
 
 Run automated tests: npm test
 
@@ -39,6 +39,20 @@ If the CLI is installed:
     icuewidget package widget
 
 The resulting `.icuewidget` can then be imported into iCUE. The original 0.1.0 widget was tested on a real XENEON EDGE. **To use the new repeat-mode indicators, build/import the 0.1.1 widget package**; the running companion and existing pairing key can remain unchanged.
+
+## Optional persistent Windows companion (draft feature)
+
+The core widget package and its pairing key are unchanged. This repository branch adds **current-user DPAPI-protected Spotify refresh-token persistence**, but no scheduled task is created automatically.
+
+1. Update the companion code and stop the existing companion only when ready to switch. Start the new version with `node companion/server.mjs` and authorize Spotify **once** at `http://127.0.0.1:8765/connect`.
+2. When the new companion is running, test an ordinary stop/restart to check whether it restores Spotify authorization. The active Spotify access token is never stored on disk.
+3. If you explicitly want automatic launch when you sign into Windows, run ` .\scripts\companion-autostart.ps1 -Install` from a PowerShell prompt in this repository. This copies the companion into a stable per-user AppData directory and creates a least-privilege, current-user Task Scheduler **at-logon** entry. It does not restart the currently running companion.
+4. To disable future autostart, run ` .\scripts\companion-autostart.ps1 -Remove`. This leaves the pairing key and protected refresh credential in place for manual use.
+5. After an installation/update, restart the companion at a convenient time or sign out and back in to run the copied version. Avoid launching a second manual instance against port 8765.
+
+**Security and failure behavior:** Windows DPAPI normally binds decryption to the same Windows account and device. Corrupted or inaccessible encrypted credentials require reauthorization; confirmed Spotify token revocation also requires reauthorization. Network outages should not erase a valid token. The encrypted credential is stored under the user's `LOCALAPPDATA`; anyone able to run malicious code as that logged-in user may still access it. Never share the encrypted credential as though it were a portable backup.
+
+**Acceptance still pending:** direct Windows user-account restart/autostart verification; successful CI alone does not prove a scheduled task behaves correctly on the user's PC.
 
 ## Widget behavior
 
@@ -63,7 +77,7 @@ It does **not** request broad internet access, file permissions, microphone, or 
 - The companion's OAuth callback validates a one-time state and PKCE code verifier.
 - It accepts only whitelisted transport commands, validates parameters and enforces JSON content type for mutations.
 - CORS allows file-widget ("file://" and "null") origins and the local companion origin, not arbitrary websites. Since sandboxed pages can also have a null origin, the independent pairing key is essential.
-- Token storage is intentionally **memory-only** for this first release candidate.
+- Access tokens remain in memory. On Windows, only the refresh token is encrypted at rest with the logged-in user's DPAPI key; it is not placed in the GitHub repository, a scheduled task argument, or a plaintext file. User-scope DPAPI cannot defend against malware executing under the same logged-in account.
 - This project is personal/noncommercial. Spotify terms, API availability and development-mode quotas apply.
 
 ## Verified integration status
@@ -74,11 +88,11 @@ As of 2026-10-19 (feature branch `feat/spotify-edge-dashboard`):
 - **Verified via local companion:** Spotify PKCE authentication and real playback/queue requests return successfully, with 20 actual upcoming tracks observed and album-art proxy responding successfully.
 - **Automated checks:** the initial code head `4c57d512ecc2fc0afb61bcab875a31c2969d1aea` passed 15 tests and official iCUE validation (Actions `39237872256`). The subsequent 0.1.1 display update adds regression coverage for distinct repeat states, mode cycling, and Smart Shuffle status messaging; refer to the current PR head's Actions run for exact-head validation.
 - **Not individually verified on hardware:** newly introduced repeat-mode visual indicators in 0.1.1, complete layout/readability, disconnect/recovery scenarios, and OAuth token refresh. Behavioral repeat, seek, volume and shuffle have been user-confirmed.
-- **Runtime constraint:** the companion must keep running; its Spotify access/refresh tokens are memory-only, so restarting it requires Spotify sign-in again. The locally stored pairing key remains valid.
+- **Runtime constraint (0.1.1 baseline):** the old companion requires reauthorization after restart. The new Windows persistent companion is a separate draft implementation; its DPAPI restore and at-logon behavior still require real-user testing before being marked accepted. The locally stored pairing key remains valid.
 
 ## Known limitations
 
-- Requires a running local companion; automatic Windows startup is not yet implemented.
+- The companion must run locally. **At-logon autostart is opt-in** via `scripts/companion-autostart.ps1`; it is not enabled by installing/building/testing the widget.
 - Touch play/pause, queue scrolling, seeking, volume, standard shuffle, and repeat behavior are user-confirmed on the XENEON EDGE. The new 0.1.1 repeat indicator still needs physical visual acceptance. Recovery behavior and actual token refresh have **not** been individually verified.
 - No queue reorder/removal: Spotify does not offer general queue editing endpoints.
 - Spotify reports some state asynchronously, so skip/pause may take a polling interval to update.
