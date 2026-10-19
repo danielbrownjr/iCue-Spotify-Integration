@@ -11,6 +11,7 @@
   let currentCoverId = null;
   let waitingOnCommand = false;
   let queueJumpInProgress = false;
+  let queueJumpWarning = null;
   let seeking = false;
 
   function setting(name, fallback) {
@@ -21,6 +22,16 @@
   function status(message, warning = false) {
     elements.status.textContent = message;
     elements.status.classList.toggle("warn", warning);
+  }
+  function activeJumpWarning() {
+    if (queueJumpWarning && Date.now() < queueJumpWarning.expires) return queueJumpWarning.message;
+    queueJumpWarning = null;
+    return null;
+  }
+  function renderWarning(queueError = null) {
+    const message = activeJumpWarning() || (queueError ? "Queue unavailable: " + queueError : null);
+    elements["queue-warning"].hidden = !message;
+    elements["queue-warning"].textContent = message || "";
   }
   function formatMs(milliseconds) {
     const s = Math.max(0, Math.floor((Number(milliseconds) || 0) / 1000));
@@ -104,8 +115,10 @@
       return;
     }
     const track = data.track;
-    status(queueJumpInProgress || data.queueJumpPending ? "Skipping queued tracks…" :
-      data.active ? (data.playing ? "● LIVE" : "Ⅱ PAUSED") : "No active playback");
+    status(activeJumpWarning() ? "Queue jump stopped (details below)" :
+      queueJumpInProgress || data.queueJumpPending ? "Skipping queued tracks…" :
+      data.active ? (data.playing ? "● LIVE" : "Ⅱ PAUSED") : "No active playback",
+      !!activeJumpWarning());
     elements.title.textContent = track?.title || "Nothing playing";
     elements.artist.textContent = track?.artist || "Start Spotify playback to begin";
     elements.album.textContent = track?.album || "";
@@ -143,8 +156,7 @@
         elements["art-fallback"].hidden = false;
       }
     }
-    elements["queue-warning"].hidden = !data.queueError;
-    if (data.queueError) elements["queue-warning"].textContent = "Queue unavailable: " + data.queueError;
+    renderWarning(data.queueError);
     queueRender(data.queue || []);
     updateProgress();
   }
@@ -168,6 +180,7 @@
     waitingOnCommand = true;
     queueJumpInProgress = true;
     const snapshot = lastState.queueSnapshot;
+    queueJumpWarning = null;
     let failure = null;
     status("Skipping to " + track.title + "…");
     try {
@@ -185,8 +198,10 @@
     } finally {
       queueJumpInProgress = false;
       waitingOnCommand = false;
+      if (failure) queueJumpWarning = { message: failure, expires: Date.now() + 60000 };
       await refresh();
-      if (failure) status(failure, true);
+      renderWarning(lastState?.queueError);
+      if (failure) status("Queue jump stopped (details below)", true);
     }
   }
   async function command(action, value) {
