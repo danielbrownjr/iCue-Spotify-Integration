@@ -4,7 +4,7 @@
   const API = "http://127.0.0.1:8765";
   const elements = Object.fromEntries(["art", "art-fallback", "status", "device", "title", "artist",
     "album", "play", "previous", "next", "shuffle", "repeat", "progress", "elapsed", "duration",
-    "queue", "queue-count", "queue-warning", "volume", "volume-number"]
+    "queue", "queue-count", "queue-warning", "volume", "volume-number", "repeat-one"]
     .map((id) => [id, document.getElementById(id)]));
   let lastState = null;
   let receivedAt = 0;
@@ -92,8 +92,19 @@
     elements.play.textContent = data.playing ? "Ⅱ" : "▶";
     elements.play.setAttribute("aria-label", data.playing ? "Pause" : "Play");
     elements.shuffle.classList.toggle("selected", !!data.shuffle);
-    elements.repeat.classList.toggle("selected", data.repeat !== "off");
-    elements.repeat.title = "Repeat: " + (data.repeat || "off");
+    elements.shuffle.setAttribute("aria-pressed", String(!!data.shuffle));
+    elements.shuffle.setAttribute("aria-label", data.shuffle ? "Shuffle on" : "Shuffle off");
+    elements.shuffle.title = data.shuffle
+      ? "Shuffle on (Smart Shuffle status is not available through Spotify Web API)"
+      : "Shuffle off";
+    const repeatMode = ["off", "context", "track"].includes(data.repeat) ? data.repeat : "off";
+    const repeatLabel = { off: "Repeat off", context: "Repeat all", track: "Repeat one" }[repeatMode];
+    elements.repeat.classList.toggle("selected", repeatMode !== "off");
+    elements.repeat.setAttribute("data-mode", repeatMode);
+    elements.repeat.setAttribute("aria-label", repeatLabel);
+    elements.repeat.setAttribute("aria-pressed", String(repeatMode !== "off"));
+    elements.repeat.title = repeatLabel;
+    elements["repeat-one"].hidden = repeatMode !== "track";
     elements.volume.disabled = data.volumePercent == null;
     if (data.volumePercent != null && !elements.volume.matches(":active")) {
       elements.volume.value = data.volumePercent;
