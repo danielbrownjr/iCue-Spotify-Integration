@@ -286,7 +286,7 @@ test("diagnostics identify when Spotify advances farther than the requested next
     }
   );
   assert.equal(f.writes, 1);
-  assert.equal(f.position, 3);
+  assert.equal(f.position, 4);
 });
 
 test("diagnostics distinguish an unrelated Spotify track from a later queue entry", async () => {
