@@ -10,6 +10,7 @@
   let receivedAt = 0;
   let currentCoverId = null;
   let waitingOnCommand = false;
+  let queueJumpInProgress = false;
   let seeking = false;
 
   function setting(name, fallback) {
@@ -54,7 +55,26 @@
       row.className = "queue-item";
       const number = document.createElement("span");
       number.className = "queue-index";
-      number.textContent = String(index + 1).padStart(2, "0");
+      const playable = index < 5 && !!track.uri && !!lastState?.queueSnapshot;
+      const playButton = document.createElement("button");
+      playButton.type = "button";
+      playButton.className = "queue-play";
+      playButton.disabled = !playable || !!lastState?.queueJumpPending || queueJumpInProgress;
+      playButton.title = playable ? "Skip to " + track.title + " (consumes earlier queue songs)"
+        : "Only the first five upcoming songs support a verified jump";
+      playButton.setAttribute("aria-label", playable
+        ? "Play " + track.title + " from queue; skips earlier songs"
+        : "Queue item " + (index + 1) + ": jump unavailable");
+      const indexLabel = document.createElement("span");
+      indexLabel.className = "queue-number";
+      indexLabel.textContent = String(index + 1).padStart(2, "0");
+      const playGlyph = document.createElement("span");
+      playGlyph.className = "queue-play-glyph";
+      playGlyph.textContent = "▶";
+      playGlyph.setAttribute("aria-hidden", "true");
+      playButton.append(indexLabel, playGlyph);
+      playButton.addEventListener("click", () => jumpToQueue(index, track));
+      number.append(playButton);
       const meta = document.createElement("div");
       meta.className = "queue-meta";
       const title = document.createElement("span");
@@ -84,7 +104,8 @@
       return;
     }
     const track = data.track;
-    status(data.active ? (data.playing ? "● LIVE" : "Ⅱ PAUSED") : "No active playback");
+    status(queueJumpInProgress || data.queueJumpPending ? "Skipping queued tracks…" :
+      data.active ? (data.playing ? "● LIVE" : "Ⅱ PAUSED") : "No active playback");
     elements.title.textContent = track?.title || "Nothing playing";
     elements.artist.textContent = track?.artist || "Start Spotify playback to begin";
     elements.album.textContent = track?.album || "";
@@ -140,6 +161,28 @@
       render(data);
     } catch (error) {
       status(error.message || "Companion offline", true);
+    }
+  }
+  async function jumpToQueue(index, track) {
+    if (waitingOnCommand || index >= 5 || !track?.uri || !lastState?.queueSnapshot) return;
+    waitingOnCommand = true;
+    queueJumpInProgress = true;
+    const snapshot = lastState.queueSnapshot;
+    status("Skipping to " + track.title + "…");
+    try {
+      const response = await fetch(API + "/api/queue-jump", {
+        method: "POST",
+        headers: { "X-Widget-Key": key(), "Content-Type": "application/json" },
+        body: JSON.stringify({ index, snapshot })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Spotify could not verify queue jump");
+    } catch (error) {
+      status(error.message || "Queue jump stopped", true);
+    } finally {
+      queueJumpInProgress = false;
+      waitingOnCommand = false;
+      await refresh();
     }
   }
   async function command(action, value) {
