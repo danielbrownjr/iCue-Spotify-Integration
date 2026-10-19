@@ -3,7 +3,8 @@ import { randomBytes, createHash } from "node:crypto";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { SCOPES, REDIRECT_URI, SPOTIFY_API, normalizePlayback, spotifyControl } from "./spotify.mjs";
+import { SCOPES, REDIRECT_URI, SPOTIFY_API, normalizePlayback } from "./spotify.mjs";
+import { performControl } from "./control.mjs";
 
 import { allowWidgetOrigin } from "./cors.mjs";
 
@@ -204,8 +205,7 @@ async function handle(req, res) {
       return reply(res, 415, { error: "JSON required" });
     try {
       const body = await readBody(req);
-      const operation = spotifyControl(body.action, body.value);
-      await spotifyRequest(operation.path, operation.method);
+      await performControl(body.action, body.value, spotifyRequest);
       playbackCache.expires = queueCache.expires = 0;
       return reply(res, 200, { ok: true });
     } catch (error) {
