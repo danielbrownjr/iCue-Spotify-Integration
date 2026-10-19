@@ -53,7 +53,19 @@ h2 { color: var(--accent-color); font-size: calc(var(--layout-unit) * 2.1); lett
 #volume-number { display: inline-block; width: calc(var(--layout-unit) * 4); text-align: right; font-variant-numeric: tabular-nums; }
 .queue-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: thin; scrollbar-color: #444 transparent; }
 .queue-item { display: flex; align-items: center; gap: calc(var(--layout-unit) * 1.5); padding: calc(var(--layout-unit) * 1.05) calc(var(--layout-unit) * .5); border-bottom: 1px solid #1a1a1a; }
-.queue-index { color: var(--muted); width: calc(var(--layout-unit) * 3); text-align: right; flex-shrink: 0; }
+.queue-index { width: calc(var(--layout-unit) * 5.2); flex-shrink: 0; display: grid; place-items: center; }
+.queue-play { position: relative; width: calc(var(--layout-unit) * 4.9); height: calc(var(--layout-unit) * 4.9); background: #222; color: var(--accent-color); border: 1px solid #383838; display: grid; place-items: center; border-radius: calc(var(--layout-unit) * 1); font-size: calc(var(--layout-unit) * 1.9); }
+.queue-play:not(:disabled):active { background: #484039; }
+.queue-play:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 1px; }
+.queue-number { color: var(--muted); font-variant-numeric: tabular-nums; }
+.queue-play-glyph { display: none; font-size: calc(var(--layout-unit) * 2.5); }
+.queue-play:not(:disabled):is(:hover, :focus-visible) .queue-number { display: none; }
+.queue-play:not(:disabled):is(:hover, :focus-visible) .queue-play-glyph { display: inline; }
+@media (hover: none), (pointer: coarse) {
+  .queue-play:not(:disabled) .queue-number { display: none; }
+  .queue-play:not(:disabled) .queue-play-glyph { display: inline; }
+}
+.queue-play:disabled { background: transparent; border-color: transparent; opacity: .65; }
 .queue-meta { flex: 1; min-width: 0; }
 .queue-title { display: block; font-size: calc(var(--layout-unit) * 2.05); color: #eee; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .queue-artist { font-size: calc(var(--layout-unit) * 1.65); color: var(--subtle); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
