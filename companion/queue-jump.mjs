@@ -69,6 +69,10 @@ export async function performQueueJump(
     throw queueJumpError("Only available songs can be selected for queue jumping.");
   ensureUnique(expected);
 
+  // Retain the full queue suffix observed at the start. Spotify may append
+  // new recommendations later; appended entries are fine, but removing or
+  // reordering already queued entries makes the operation unsafe to continue.
+  const observedSuffix = initialEntries.map(queueUri);
   const deviceId = initialPlayback.device.id;
   let playback = initialPlayback;
   let queue = initialQueue;
@@ -77,7 +81,7 @@ export async function performQueueJump(
     ensureActive(playback, deviceId);
     if (queueUri(playback.item) !== expected[step])
       throw queueJumpError("Spotify playback changed; stopped before another skip.");
-    const remaining = expected.slice(step + 1);
+    const remaining = observedSuffix.slice(step);
     const upcoming = queueEntries(queue).slice(0, remaining.length).map(queueUri);
     if (upcoming.length !== remaining.length ||
         upcoming.some((uri, i) => uri !== remaining[i]))
@@ -97,7 +101,7 @@ export async function performQueueJump(
       if (now !== expected[step] && now !== expected[step + 1])
         throw queueJumpError("Spotify switched tracks unexpectedly; stopped jumping.");
       if (now !== expected[step + 1]) continue;
-      const following = expected.slice(step + 2);
+      const following = observedSuffix.slice(step + 1);
       const currentUpcoming = queueEntries(queue).slice(0, following.length).map(queueUri);
       if (currentUpcoming.length !== following.length ||
           currentUpcoming.some((uri, i) => uri !== following[i]))
