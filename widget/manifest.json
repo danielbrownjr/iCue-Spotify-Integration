@@ -3,7 +3,7 @@
   "id": "com.danielbrown.icuespotify",
   "name": "Spotify Queue Dashboard",
   "description": "Interactive Spotify Now Playing and queue for Corsair XENEON EDGE",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "preview_icon": "resources/icon.svg",
   "min_app_version": "5.52",
   "min_framework_version": "1.9.0",
