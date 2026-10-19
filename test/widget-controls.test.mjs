@@ -47,6 +47,8 @@ function dashboardHarness() {
     }
     if (url.endsWith("/api/queue-jump")) {
       commands.push({ action: "queue-jump", ...JSON.parse(options.body) });
+      if (state.queueJumpError)
+        return { ok: false, json: async () => ({ error: state.queueJumpError }) };
       return { ok: true, json: async () => ({ ok: true, skipped: 1 }) };
     }
     if (url.endsWith("/api/control")) {
@@ -154,4 +156,27 @@ test("missing current queue snapshot disables jump actions", async () => {
   button.listeners.get("click")();
   await settle();
   assert.equal(commands.length, 0);
+});
+
+test("queue jump failure stays visible across automatic playback refreshes", async () => {
+  const { elements, state, window, commands } = dashboardHarness();
+  state.queueSnapshot = "s".repeat(43);
+  state.queue = [{ uri: "spotify:track:first", title: "First", artist: "Artist" }];
+  state.queueJumpError = "After Next command 1/3, Spotify reported original queue song #3 instead of queue song #1. Stopped safely.";
+  window.icueEvents.onDataUpdated();
+  await settle();
+  elements.queue.children[0].children[0].children[0].listeners.get("click")();
+  await settle();
+
+  assert.equal(commands.length, 1);
+  assert.equal(elements["queue-warning"].hidden, false);
+  assert.match(elements["queue-warning"].textContent, /After Next command 1\/3/);
+  assert.match(elements.status.textContent, /Queue jump stopped/);
+
+  // iCUE polls state every 3.5s. Error must not flash away on the next poll.
+  window.icueEvents.onDataUpdated();
+  await settle();
+  assert.equal(elements["queue-warning"].hidden, false);
+  assert.match(elements["queue-warning"].textContent, /After Next command 1\/3/);
+  assert.equal(elements.status.classes.has("warn"), true);
 });
