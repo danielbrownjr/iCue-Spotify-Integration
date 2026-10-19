@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { SCOPES, REDIRECT_URI, SPOTIFY_API, normalizePlayback } from "./spotify.mjs";
 import { performControl } from "./control.mjs";
+import { queueSnapshot, performQueueJump } from "./queue-jump.mjs";
 
 import { allowWidgetOrigin } from "./cors.mjs";
 
@@ -21,6 +22,7 @@ let playbackCache = { expires: 0, value: null };
 let queueCache = { expires: 0, value: null };
 let spotifyBackoffUntil = 0;
 let lastArtwork = null;
+let queueJumpPending = false;
 
 function base64url(bytes) { return Buffer.from(bytes).toString("base64url"); }
 function randomString() { return base64url(randomBytes(32)); }
@@ -155,6 +157,8 @@ async function readState() {
   }
   const state = normalizePlayback(playback, queue);
   state.queueError = queueError;
+  state.queueSnapshot = queueError ? null : queueSnapshot(playback, queue);
+  state.queueJumpPending = queueJumpPending;
   const art = state.track?.image;
   if (art && art.startsWith("https://")) lastArtwork = art;
   return state;
@@ -200,7 +204,25 @@ async function handle(req, res) {
     try { return reply(res, 200, await readState()); }
     catch (error) { return reply(res, error.status || 502, { error: error.message }); }
   }
+  if (url.pathname === "/api/queue-jump" && req.method === "POST") {
+    if (!req.headers["content-type"]?.startsWith("application/json"))
+      return reply(res, 415, { error: "JSON required" });
+    if (queueJumpPending) return reply(res, 409, { error: "Queue jump already in progress" });
+    queueJumpPending = true;
+    try {
+      const body = await readBody(req);
+      const result = await performQueueJump(body, spotifyRequest);
+      playbackCache.expires = queueCache.expires = 0;
+      return reply(res, 200, result);
+    } catch (error) {
+      playbackCache.expires = queueCache.expires = 0;
+      return reply(res, error.status || 502, { error: error.message });
+    } finally {
+      queueJumpPending = false;
+    }
+  }
   if (url.pathname === "/api/control" && req.method === "POST") {
+    if (queueJumpPending) return reply(res, 409, { error: "Queue jump in progress" });
     if (!req.headers["content-type"]?.startsWith("application/json"))
       return reply(res, 415, { error: "JSON required" });
     try {
