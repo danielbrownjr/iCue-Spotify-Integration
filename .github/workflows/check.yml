@@ -34,10 +34,11 @@ jobs:
       - name: Validate Windows startup scripts and synthetic hidden launcher
         shell: pwsh
         run: |
-          foreach ($relative in @('scripts/companion-autostart.ps1', 'scripts/start-companion-hidden.ps1', 'scripts/build-hidden-launcher.ps1', 'test/hidden-launcher.test.ps1')) {
+          foreach ($relative in @('scripts/companion-autostart.ps1', 'scripts/start-companion-hidden.ps1', 'scripts/build-hidden-launcher.ps1', 'scripts/installation-safety.ps1', 'test/hidden-launcher.test.ps1', 'test/installation-safety.test.ps1')) {
             $tokens = $null
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $relative), [ref]$tokens, [ref]$errors) | Out-Null
             if ($errors.Count -gt 0) { throw ("PowerShell parse failure in " + $relative + ": " + ($errors | Out-String)) }
           }
           & (Join-Path $PWD 'test/hidden-launcher.test.ps1')
+          & (Join-Path $PWD 'test/installation-safety.test.ps1')
