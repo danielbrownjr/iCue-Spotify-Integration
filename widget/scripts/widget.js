@@ -123,7 +123,7 @@
     elements.artist.textContent = track?.artist || "Start Spotify playback to begin";
     elements.album.textContent = track?.album || "";
     elements.device.textContent = data.device || "UNKNOWN DEVICE";
-    elements.play.textContent = data.playing ? "Ⅱ" : "▶";
+    elements.play.setAttribute("data-playing", String(!!data.playing));
     elements.play.setAttribute("aria-label", data.playing ? "Pause" : "Play");
     elements.shuffle.classList.toggle("selected", !!data.shuffle);
     elements.shuffle.setAttribute("aria-pressed", String(!!data.shuffle));

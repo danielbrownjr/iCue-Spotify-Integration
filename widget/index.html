@@ -25,11 +25,44 @@
         <p id="artist">Connect your Spotify account to begin</p>
         <p id="album" class="album"></p>
         <div class="transport" aria-label="Playback controls">
-          <button id="previous" aria-label="Previous track" title="Previous track">⏮</button>
-          <button id="play" class="primary" aria-label="Play or pause" title="Play or pause">▶</button>
-          <button id="next" aria-label="Next track" title="Next track">⏭</button>
-          <button id="shuffle" aria-label="Toggle shuffle" title="Shuffle">⤨</button>
-          <button id="repeat" aria-label="Repeat off" title="Repeat off" aria-pressed="false" data-mode="off">↻<sup id="repeat-one" aria-hidden="true" hidden>1</sup></button>
+          <button id="previous" class="control-button" type="button" aria-label="Previous track" title="Previous track">
+            <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <rect x="4" y="5" width="2.5" height="14" rx=".65" fill="currentColor" />
+              <path d="M19 5.8 8.7 12 19 18.2V5.8Z" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" />
+            </svg>
+          </button>
+          <button id="play" class="control-button primary" type="button" data-playing="false" aria-label="Play" title="Play or pause">
+            <svg class="control-icon icon-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M8 5.8 18.5 12 8 18.2V5.8Z" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" />
+            </svg>
+            <svg class="control-icon icon-pause" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <rect x="6.5" y="5" width="4" height="14" rx="1" fill="currentColor" />
+              <rect x="13.5" y="5" width="4" height="14" rx="1" fill="currentColor" />
+            </svg>
+          </button>
+          <button id="next" class="control-button" type="button" aria-label="Next track" title="Next track">
+            <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M5 5.8 15.3 12 5 18.2V5.8Z" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" />
+              <rect x="17.5" y="5" width="2.5" height="14" rx=".65" fill="currentColor" />
+            </svg>
+          </button>
+          <button id="shuffle" class="control-button" type="button" aria-label="Toggle shuffle" aria-pressed="false" title="Shuffle">
+            <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 7h3c4.5 0 5 10 10 10h3" />
+              <path d="m16 13 4 4-4 4" />
+              <path d="M4 17h3c2.2 0 3.5-2.7 4.5-4.3" />
+              <path d="M14.5 7H20m-4-4 4 4-4 4" />
+            </svg>
+          </button>
+          <button id="repeat" class="control-button" type="button" aria-label="Repeat off" title="Repeat off" aria-pressed="false" data-mode="off">
+            <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 10V8.5A3.5 3.5 0 0 0 16.5 5H5" />
+              <path d="m8 2-3 3 3 3" />
+              <path d="M4 14v1.5A3.5 3.5 0 0 0 7.5 19H19" />
+              <path d="m16 16 3 3-3 3" />
+            </svg>
+            <sup id="repeat-one" aria-hidden="true" hidden>1</sup>
+          </button>
         </div>
       </div>
     </section>

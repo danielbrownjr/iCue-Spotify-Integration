@@ -20,6 +20,21 @@ jobs:
         run: |
           npm install -g icuewidget-cli
           icuewidget validate widget
+      - name: Build installable iCUE widget preview
+        run: |
+          icuewidget package widget --output spotify-queue-0.1.4.icuewidget
+          test -s spotify-queue-0.1.4.icuewidget
+          unzip -t spotify-queue-0.1.4.icuewidget
+          unzip -Z1 spotify-queue-0.1.4.icuewidget | grep -Eq '(^|/)manifest\.json$'
+          unzip -Z1 spotify-queue-0.1.4.icuewidget | grep -Eq '(^|/)index\.html$'
+          sha256sum spotify-queue-0.1.4.icuewidget
+      - name: Save hardware-test widget package
+        uses: actions/upload-artifact@v4
+        with:
+          name: spotify-edge-widget-v0.1.4
+          path: spotify-queue-0.1.4.icuewidget
+          if-no-files-found: error
+          retention-days: 14
 
   windows-dpapi:
     runs-on: windows-latest
