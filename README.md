@@ -2,6 +2,12 @@
 
 A touch-friendly Spotify Now Playing + **actual queue** widget for the Corsair XENEON EDGE, designed for a **medium horizontal 840×696 iCUE dashboard tile**. The desktop companion runs on Windows at 127.0.0.1:8765. The widget has been imported into iCUE and tested on the XENEON EDGE; see [Verified integration status](#verified-integration-status) for the exact scope of live testing.
 
+## License
+
+This project's source code is licensed under the [MIT License](LICENSE). You're welcome to use, modify, and redistribute it under those terms.
+
+This is an unofficial community project, not affiliated with or endorsed by Corsair or Spotify. Their names and trademarks, and album artwork provided by Spotify, are not licensed by this repository.
+
 ## Widget v0.1.4: transport-control visual refinement (draft)
 
 The widget replaces the platform-dependent skip glyphs and Roman-numeral pause character with crisp inline SVG icons for **Previous, Play/Pause, Next, Shuffle, and Repeat**. It also gives the five transport controls consistent touch-sized graphite buttons and a distinct accent-colored play/pause key. The play/pause SVG is switched using playback state without overwriting DOM nodes. Existing accessible labels, repeat-one badge, queue jump, Spotify behavior, pairing key, localhost companion, and Windows autostart are unchanged.
