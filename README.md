@@ -2,6 +2,12 @@
 
 A touch-friendly Spotify Now Playing + **actual queue** widget for the Corsair XENEON EDGE, designed for a **medium horizontal 840×696 iCUE dashboard tile**. The desktop companion runs on Windows at 127.0.0.1:8765. The widget has been imported into iCUE and tested on the XENEON EDGE; see [Verified integration status](#verified-integration-status) for the exact scope of live testing.
 
+## Widget v0.1.4: transport-control visual refinement (draft)
+
+The widget replaces the platform-dependent skip glyphs and Roman-numeral pause character with crisp inline SVG icons for **Previous, Play/Pause, Next, Shuffle, and Repeat**. It also gives the five transport controls consistent touch-sized graphite buttons and a distinct accent-colored play/pause key. The play/pause SVG is switched using playback state without overwriting DOM nodes. Existing accessible labels, repeat-one badge, queue jump, Spotify behavior, pairing key, localhost companion, and Windows autostart are unchanged.
+
+**Installation:** This is a widget-package-only visual update. It requires packaging/reimporting **v0.1.4** in iCUE to see the new artwork; no companion restart or reinstall is needed. Until this draft PR is hardware-tested, the working **v0.1.3** widget can remain installed as rollback. Automated tests do not establish exact physical XENEON EDGE appearance.
+
 ## Prerequisites
 
 - Spotify Premium account with a Spotify Developer application.
@@ -130,7 +136,3 @@ As of 2026-10-19 (feature branch `feat/spotify-edge-dashboard`):
 - No automatic Spotify device-selection UI in this first slice.
 - Smart Shuffle cannot be distinguished or explicitly selected through the current Spotify Web API; shuffle control stays boolean on/off.
 - Queue-row play uses a maximum of five verified Next commands; it consumes earlier songs and may stop after a partial skip if Spotify changes the queue or device. It cannot guarantee an atomic position jump. The user's v0.1.3 queue jump is hardware-accepted; this remains a bounded best-effort operation.
-
-## Development policy
-
-Follow the canonical General Standing Orders (GSO) for repository work. Make scoped changes on branches, validate the exact current head, do not add AI attribution, and do not merge, tag, publish, deploy or run persistent services on the user's workstation without explicit authorization.
