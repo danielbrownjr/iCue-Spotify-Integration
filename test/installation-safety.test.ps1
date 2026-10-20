@@ -37,6 +37,10 @@ try {
     if (Test-Path -LiteralPath (Join-Path $Fixture 'app')) {
         throw 'Source preflight unexpectedly modified an app directory.'
     }
+    # Node's deliberate nonzero syntax-check exit can otherwise survive as the
+    # pwsh step's last native process code despite our expected-error assertion.
+    & $Node --version | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Node did not recover after the negative fixture.' }
     Write-Host 'AppData virtualization, physical path and source preflight tests passed.'
 } finally {
     Remove-Item -LiteralPath $Fixture -Recurse -Force -ErrorAction SilentlyContinue
