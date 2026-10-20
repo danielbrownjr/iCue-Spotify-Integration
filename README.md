@@ -1,144 +1,159 @@
-# iCUE Spotify Integration
+# Spotify Queue Dashboard for XENEON EDGE
 
-A touch-friendly Spotify Now Playing + **actual queue** widget for the Corsair XENEON EDGE, designed for a **medium horizontal 840×696 iCUE dashboard tile**. The desktop companion runs on Windows at 127.0.0.1:8765. The widget has been imported into iCUE and tested on the XENEON EDGE; see [Verified integration status](#verified-integration-status) for the exact scope of live testing.
+A custom iCUE widget for the Corsair XENEON EDGE that shows **what's playing and what's actually next in Spotify**. It includes album art, song progress, volume, shuffle, repeat, and a scrollable queue. You can tap one of the first five upcoming songs to skip forward through Spotify's queue.
 
-## License
+The widget was tested on a physical XENEON EDGE at **840 × 696 (medium horizontal)**. It talks to a small, local Node.js companion on your Windows PC. No separate project-hosted service or npm runtime dependencies are required, but the companion does need Spotify's Web API and initial setup is manual.
 
-This project's source code is licensed under the [MIT License](LICENSE). You're welcome to use, modify, and redistribute it under those terms.
+**Current download:** [v0.1.4-rc.1 release candidate](https://github.com/danielbrownjr/iCue-Spotify-Integration/releases/tag/v0.1.4-rc.1) · [Download the .icuewidget directly](https://github.com/danielbrownjr/iCue-Spotify-Integration/releases/download/v0.1.4-rc.1/spotify-queue-0.1.4.icuewidget)
 
-This is an unofficial community project, not affiliated with or endorsed by Corsair or Spotify. Their names and trademarks, and album artwork provided by Spotify, are not licensed by this repository.
+This is a release candidate, not a one-click installer. If you hit a snag, [open an issue](https://github.com/danielbrownjr/iCue-Spotify-Integration/issues).
 
-## Widget v0.1.4: transport-control visual refinement (draft)
+## Before you start
 
-The widget replaces the platform-dependent skip glyphs and Roman-numeral pause character with crisp inline SVG icons for **Previous, Play/Pause, Next, Shuffle, and Repeat**. It also gives the five transport controls consistent touch-sized graphite buttons and a distinct accent-colored play/pause key. The play/pause SVG is switched using playback state without overwriting DOM nodes. Existing accessible labels, repeat-one badge, queue jump, Spotify behavior, pairing key, localhost companion, and Windows autostart are unchanged.
+You'll need:
 
-**Installation:** This is a widget-package-only visual update. It requires packaging/reimporting **v0.1.4** in iCUE to see the new artwork; no companion restart or reinstall is needed. Until this draft PR is hardware-tested, the working **v0.1.3** widget can remain installed as rollback. Automated tests do not establish exact physical XENEON EDGE appearance.
+- A **Corsair XENEON EDGE** with **iCUE 5.52 or newer** (Widget API 1.9.0).
+- **Windows** and **Node.js 22 or newer** on the same PC.
+- **Spotify Premium** and an active playback device in Spotify Connect.
+- Your **own Spotify Web API developer app** with access to the Spotify account you're signing in with.
 
-## Prerequisites
+Spotify's developer-mode access and API limits can prevent an app from working for arbitrary Spotify accounts. **Do not assume the Client ID built into this project gives your account access.** Set up your own app as described below. The Client ID is public, but your local widget pairing key and Spotify tokens are not.
 
-- Spotify Premium account with a Spotify Developer application.
-- Windows with Spotify playing on an active Spotify Connect device.
-- Node.js 22 or later (no npm dependencies needed to run the companion).
-- iCUE 5.52+ for Widget API 1.9.0 permissions and a XENEON EDGE.
-- iCUE Widget CLI, optional until packaging: npm install -g icuewidget-cli.
+## Install it
 
-## Spotify Developer setup
+### 1. Download the widget and get the companion source
 
-Create a Spotify **Web API** app at https://developer.spotify.com/dashboard. Add this exact redirect URI:
+Download `spotify-queue-0.1.4.icuewidget` from the [RC release](https://github.com/danielbrownjr/iCue-Spotify-Integration/releases/tag/v0.1.4-rc.1). Keep it somewhere you can find it in iCUE.
 
-    http://127.0.0.1:8765/callback
+Get the repository onto your PC, either by downloading **Code → Download ZIP** from GitHub and extracting it, or with Git:
 
-The app uses Spotify Authorization Code + PKCE. Its **Client ID is a public identifier**. There is no Client Secret. The default Client ID is the one registered for this repository; override it with the SPOTIFY_CLIENT_ID environment variable if you fork.
+```powershell
+git clone https://github.com/danielbrownjr/iCue-Spotify-Integration.git
+cd iCue-Spotify-Integration
+```
 
-Requested scopes: user-read-playback-state and user-modify-playback-state. The queue endpoint can be read with the first scope.
+The following commands assume PowerShell is open in that repository folder. **Node.js is required**, but you do not need to run `npm install` to start the companion.
 
-## First run (Windows PowerShell)
+### 2. Create a Spotify developer app
 
-1. Open a terminal in this repository.
-2. Run: node companion/server.mjs
-3. When started manually with a terminal, the companion prints its **Widget pairing key** (saved under your local AppData folder, NOT the repository). In console-free mode there is no terminal: the key is preserved at `%LOCALAPPDATA%\iCueSpotifyIntegration\pairing-key`. If necessary, view it privately from a trusted, native Windows PowerShell session using `Get-Content -LiteralPath (Join-Path $env:LOCALAPPDATA 'iCueSpotifyIntegration\pairing-key')`; never paste the key into GitHub, support chats, screenshots or logs.
-4. Open http://127.0.0.1:8765/connect in your normal browser and authorize Spotify.
-5. Install/package the widget. In its iCUE settings, paste the companion pairing key into **Pairing key**.
-6. Position the widget in a medium horizontal slot on the XENEON EDGE.
+In the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard), create a Web API app and register **this exact redirect URI**:
 
-On **this integration branch**, Windows persists **only the Spotify refresh token**, encrypted with the current Windows user's DPAPI key at `%LOCALAPPDATA%\iCueSpotifyIntegration\spotify-refresh.dpapi`. Access tokens remain in memory. An existing v0.1.3 memory-only installation must be authorized **once** with this updated companion; subsequent restarts should restore the protected refresh credential without reopening `/connect`. Persistent login and console-free at-logon startup passed a real Windows reboot/sign-in test on 2026-10-19; the currently installed v0.1.3 widget remained functional. On non-Windows hosts, tokens remain memory-only.
+```text
+http://127.0.0.1:8765/callback
+```
 
-Run automated tests: npm test
+Use the app's **Client ID**, not a Client Secret. The companion uses Authorization Code with PKCE and requests `user-read-playback-state` and `user-modify-playback-state`. Check that your Spotify account is permitted to use the app in its current development mode.
 
-If the CLI is installed:
+In **ordinary Windows PowerShell**, set your Client ID for the current session:
 
-    icuewidget validate widget
-    icuewidget package widget
+```powershell
+$env:SPOTIFY_CLIENT_ID = "YOUR_SPOTIFY_CLIENT_ID"
+```
 
-The resulting `.icuewidget` can then be imported into iCUE. If **v0.1.3** is already installed and working on the XENEON EDGE, **do not replace the widget** for this companion-only Windows login/autostart integration. Keep the existing local pairing key and Medium horizontal layout.
+To use the same ID after signing out or setting up optional autostart, also save it in your **user** environment:
 
-## Optional Windows encrypted login and autostart (integration draft)
+```powershell
+[Environment]::SetEnvironmentVariable("SPOTIFY_CLIENT_ID", $env:SPOTIFY_CLIENT_ID, "User")
+```
 
-The working v0.1.3 widget, queue-jump endpoint, pairing key, localhost port, and UI are unchanged. The Windows companion adds *user-scoped* DPAPI protection for a single refresh token. It never stores an access token on disk or passes OAuth tokens to Task Scheduler.
+Sign out and back in before testing at-logon startup so the newly configured user environment is available. A Client ID is not a secret; **never put a Spotify Client Secret or access token into these commands**.
 
-**Controlled first-time upgrade:**
+### 3. Connect Spotify
 
-1. Verify the exact integrated branch `feat/persistent-companion-v013` and your clean local checkout. Preserve the working v0.1.3 widget package and note the PID/process currently bound to `127.0.0.1:8765`. Do not assume the old PID is still current.
-2. With user confirmation, gracefully stop **only** that verified companion and start the updated code from the integrated checkout: `node companion/server.mjs`.
-3. Open `http://127.0.0.1:8765/connect` and authorize Spotify **once**. This saves the refresh token encrypted for the current Windows user, in the existing AppData configuration directory. The pairing key file is preserved; it should not need to be pasted into the widget again.
-4. Perform a manual companion stop/restart (after user confirmation); confirm `/api/state` returns authenticated Spotify playback and the v0.1.3 queue without another authorization prompt. If a token is revoked or corrupt, `/connect` remains the recovery path. Do not display or upload raw pairing keys or tokens.
-5. **Only once manual restoration is confirmed**, opt in to Windows at-logon startup. From a PowerShell prompt in the integrated checkout run `.\scripts\companion-autostart.ps1 -Install`. This copies `companion/` and `package.json` under `%LOCALAPPDATA%\iCueSpotifyIntegration\app`, verifies the copied Node entrypoint and registers a **current-user, least-privilege, at-logon** Task Scheduler entry. Nothing is automatically installed by tests/builds.
-6. To inspect the task, run `.\scripts\companion-autostart.ps1 -Status`; to stop launching automatically in the future, run `.\scripts\companion-autostart.ps1 -Remove`. Removal does **not** delete the encrypted refresh token, pairing key or copied app.
-7. When ready, stop any manually running instance and sign out/in (or reboot) to exercise autostart. Check that exactly one companion listens on `127.0.0.1:8765`, Spotify reconnects without browser login, and the existing v0.1.3 queue-jump controls still work. Do not launch a second manual companion while the scheduled one is running.
+Start the companion from the repository folder:
 
-### Optional console-free Windows startup (physically accepted)
+```powershell
+node .\companion\server.mjs
+```
 
-Both the original visible-console startup and the final console-free GUI supervisor passed real Windows reboot tests on 2026-10-19. The launcher changes **only how the same Task Scheduler entry launches the companion**, not its Spotify credentials, queue logic, widget v0.1.3, or pairing key.
+Keep this PowerShell window running for now. The companion binds to **127.0.0.1:8765** and prints a **Widget pairing key** on first launch. Save that key privately; don't share a screenshot or paste it into an issue.
 
-**Existing default stays unchanged:** `.\\scripts\\companion-autostart.ps1 -Install` registers the original console-based Node task and is the **rollback** mode. To opt into the **console-free** launcher instead, run `.\\scripts\\companion-autostart.ps1 -InstallHidden` from the verified integration branch. This replaces the action of the **same** `iCUE Spotify Companion` task, never creates a second startup task, and preserves the existing CurrentUser/Limited/AtLogOn principal, `IgnoreNew` policy, and AppData credential files.
+Open [http://127.0.0.1:8765/connect](http://127.0.0.1:8765/connect) in your browser. Sign in to the Spotify account allowed by your developer app and approve access. You should see **Spotify connected**.
 
-The hidden mode builds a small GUI-subsystem supervisor from `scripts/companion-hidden.cs` using the .NET Framework C# compiler included with Windows. Task Scheduler launches this executable directly from stable AppData: no PowerShell or Node console needs to open or be hidden, including when Windows Terminal is the default console host. The supervisor creates Node with `CREATE_NO_WINDOW` and waits for its exit. A Windows job object terminates Node if its supervisor stops, preventing orphaned listeners. Versioned launcher filenames allow installation while the previous instance runs. No new packages are downloaded, credentials appear nowhere in task arguments, and no disk logs containing the pairing key are created. The manual PowerShell launcher remains available for compatibility; `-Install` restores the original visible Node mode.
+On Windows, the companion saves only the **refresh token**, encrypted for your signed-in Windows account with DPAPI. The access token stays in memory.
 
-**Controlled rollout (user/Codex supervised):** First verify the currently running instance/task and keep a copy of the known-good task definition; do not assume an old PID. After explicit approval, run `-InstallHidden` and `-Status` from the current checkout. With further approval, stop only the verified old companion/task and start the updated task, confirming exactly one listener on `127.0.0.1:8765`, widget queue/playback and automatic Spotify restoration, and **no visible console**. These checks were completed on the user's real Windows desktop and after an actual reboot, in addition to CI. Follow the same supervised rollout steps when changing another installation.
+### 4. Import the widget into iCUE
 
-**Rollback:** If hidden startup fails or makes recovery harder, stop the hidden task with user confirmation, run `.\\scripts\\companion-autostart.ps1 -Install`, then start the same task. This restores the user-tested visible Node console action and retains the DPAPI refresh token, pairing key, task name and v0.1.3 widget. `-Remove` is a separate action that removes startup registration (not secrets). The `-Status` option reports which launcher mode is configured. Do not invoke a second manual companion while the task is running. Do **not** mistake Task Scheduler's own `Hidden` setting for hiding the launched Node window.
+Import the downloaded `.icuewidget` file through iCUE's widget import/add flow. Put it on the XENEON EDGE in a **medium horizontal tile**, then open its widget settings.
 
-**Scope and recovery:** The task starts **when this Windows user signs in**, not before login, and uses the Node executable path discovered when installed. If Node moves or is uninstalled, rerun the **same launcher mode** previously installed (`-InstallHidden` for console-free startup, `-Install` for visible-console rollback) after correcting Node. AppData is a stable per-user program location, not a temp working directory. A Windows account/profile/device change may prevent decrypting DPAPI data; reauthorize rather than copying encrypted credentials between machines. DPAPI encryption does not protect tokens against malicious code already running as the same signed-in user. If the companion must be updated, rerun **the same chosen mode** (`-InstallHidden` or `-Install`) from a verified checkout and restart deliberately rather than interrupting live Spotify playback. Do not run the installer from an MSIX/packaged app's virtualized AppData context; use native Windows PowerShell. The installer checks the physical AppData path and validates source syntax and native launcher compilation before updating the installed files.
+Set **Companion pairing key** to the key printed by the companion. Leave the terminal running and start playing something in Spotify. You should see the current song, artwork, and upcoming queue.
 
-**Acceptance completed (2026-10-19):** real Windows sign-in launched exactly one console-free supervised companion. Spotify restored authorization, real playback/artwork and 20 queue entries loaded, and the v0.1.3 XENEON EDGE widget worked. CI remains a separate source-level check. Destructive task removal and rollback were inspected/documented but not exercised.
+The widget itself does not sign in to Spotify. It communicates only with the local companion. If it says **Set pairing key in widget settings**, the key has not been entered.
 
-## Widget behavior
+### 5. Optional: start the companion silently at Windows sign-in
 
-Shows cover artwork, title, artists, album, elapsed/duration, queue, active device, volume, shuffle and repeat. Tap controls or seek on the progress bar. The widget polls playback about every 3.5 seconds; the companion caches playback for 3 seconds and the queue for 15 seconds. API rate-limit responses are respected with backoff. A pending queue/API problem is shown as a warning rather than quietly displaying a fabricated queue.
+First confirm that Spotify login and the widget work while the companion is running manually. Then, **from native Windows PowerShell (not an MSIX/packaged terminal)** in the repository folder, you can opt into console-free startup:
 
-### Play an upcoming song without rebuilding the queue (v0.1.2)
+```powershell
+.\scripts\companion-autostart.ps1 -InstallHidden
+```
 
-The first **five** entries under **Up Next** have a play button in the index cell (the number swaps to ▶ on hover/focus, or is shown directly on touch devices). Selecting one advances through Spotify's actual queue using **one Next operation at a time**. The songs **before** the selected entry are consumed as skipped songs. The remaining entries are left to Spotify's native queue rather than copied into a new context.
+This copies the companion into your user AppData directory and registers a **current-user Scheduled Task** called `iCUE Spotify Companion`. The console-free launcher uses a locally compiled Windows supervisor; no additional background service or second task is installed.
 
-Because Spotify's Web API does not support atomic jump-to-queue-position, this is a **best-effort, bounded operation**, not a guarantee of preserving every queue item. Each skip is verified against a fresh playback/queue read before another command is sent. The action aborts on a changed device, unexpected track or queue order, repeated URIs in the traversed prefix, Spotify rejection/rate-limit, or missing confirmation. Aborting after an accepted skip cannot undo earlier skips. The selected row must still match the widget's recent queue fingerprint; a stale view fails without altering playback.
+**Installation does not restart the companion you already have running.** Before testing the scheduled task, stop your manual `node` process with **Ctrl+C**. Then sign out and back in (or reboot) and verify that the widget reconnects without a visible terminal or a new Spotify login. Don't run another manual copy at the same time.
 
-- Requires active playing playback on a Spotify Connect device; paused or unavailable playback is rejected rather than silently starting a new context.
-- Rows beyond the first five show their number but do not enable a queue jump. This deliberate cap limits API traffic and surprises.
-- Another Spotify client can change the queue at any time. Spotify does not guarantee ordering of separate Player commands, even when requests are awaited; the companion checks state and stops on mismatches.
-- No changes to the OAuth scopes, repeat/shuffle controls, companion startup, or native queue editing support. This is **skip-through**, not arbitrary native queue reordering.
-- **Historical v0.1.2 defect (2026-10-19):** playing upcoming row 01 worked, but selecting row 03/05 advanced to 01 and then stopped with `Spotify switched tracks unexpectedly; stopped jumping.` This historical failure was subsequently confirmed fixed by the user after installing v0.1.3 on the actual XENEON EDGE.
-- **v0.1.3 diagnostic update:** reports which Next command and which original queue position (if any) Spotify reported. It does not bypass unexpected-track checks or send extra skips. Queue-jump errors remain visible in the widget warning area for 60 seconds instead of disappearing at the next 3.5-second refresh. Existing v0.1.3 deployments already have this behavior and need no widget replacement for the Windows companion update; the older v0.1.2 UI did not retain the warning.
-- For **new** queue-jump regression testing, use a disposable queue with shuffle and repeat off; record any error text and actual playing song. Stop on partial failure rather than retrying blindly.
+Useful commands from the repository folder:
 
-### Shuffle and repeat behavior
+```powershell
+.\scripts\companion-autostart.ps1 -Status
+.\scripts\companion-autostart.ps1 -Remove
+```
 
-The repeat button cycles through **Off → Repeat all (`context`) → Repeat one (`track`) → Off**. Off is dimmed; repeat all is orange; repeat one is orange with a visible `1`. The button's accessibility label and tooltip identify the selected mode. These 0.1.1 indicators are code/CI-validated but still require confirmation on the real display after importing the updated widget.
+`-Remove` unregisters autostart but does **not** delete your local pairing key or saved Spotify credential. For a visible-console launcher, use `-Install` instead of `-InstallHidden`. When updating an existing installation, rerun **the same launcher mode** you already use, and plan a controlled restart; changing the task does not restart an already-running process.
 
-Shuffle is a simple **on/off** control. Spotify's Web API reports `shuffle_state` as a boolean and the shuffle endpoint accepts only `true` or `false`. Spotify's app also has **Smart Shuffle**, but the API provides no distinct Smart Shuffle status or selection command. The widget therefore cannot accurately identify or cycle that third mode; use the Spotify app for Smart Shuffle.
+## Troubleshooting
 
-The widget uses one narrowly scoped network permission:
+| What you see | What to check |
+| --- | --- |
+| **Set pairing key in widget settings** | Add the key from your companion's terminal to the widget's **Companion pairing key** setting. Keep it private. |
+| **Companion offline** or no data | Check that `node .\companion\server.mjs` is running, or check `-Status` if you installed autostart. Only one process can listen on port 8765. |
+| **Open companion /connect** or authentication expired | Open `http://127.0.0.1:8765/connect` again and authorize. Confirm you used the correct Spotify developer app and an account permitted to use it. |
+| Spotify login fails | Check your `SPOTIFY_CLIENT_ID` and the **exact** redirect URI above, including `127.0.0.1` rather than `localhost`. Confirm your Spotify app's development-mode access. |
+| **Nothing playing**, missing volume, or empty queue | Start playback in Spotify on an **active Spotify Connect device**. Available controls depend on what Spotify reports for that device. |
+| Queue warning or buttons seem delayed | Spotify state can lag or be rate-limited. Give it a moment; don't repeatedly tap a queue-jump button after a partial skip. |
+| Background startup doesn't work | Run `-Status` in native PowerShell and check the registered executable, Node installation path, and your user-level Client ID. Sign in again after changing user environment settings. |
 
-- URL: 127.0.0.1 port 8765 (local companion only).
+If reporting a bug, include your widget version, iCUE version, what you expected, what happened, and any **non-sensitive** error text. Never post pairing keys, OAuth codes, tokens, or logs containing them.
 
-It does **not** request broad internet access, file permissions, microphone, or screen capture. Album art is proxied through the loopback companion rather than giving the widget unrestricted Spotify CDN access.
+## What the controls do
 
-## Security boundaries
+- **Previous / Play-Pause / Next:** standard Spotify playback controls, with vector icons in v0.1.4.
+- **Seek and volume:** work when Spotify exposes those controls for the active device.
+- **Shuffle:** on/off. Spotify's Web API doesn't expose Smart Shuffle as a distinct selectable mode.
+- **Repeat:** Off → All → One → Off. A small **1** on the icon identifies Repeat One.
+- **Up Next:** scroll the real Spotify queue, normally up to 20 upcoming tracks as returned by Spotify.
 
-- Never commit Spotify access/refresh tokens, OAuth codes, local pairing keys or client secrets.
-- The companion listens only on 127.0.0.1, checks the Host and browser Origin headers and requires X-Widget-Key for reading playback state or issuing commands. The key is generated locally, never committed, and must be treated as a local capability token.
-- The companion's OAuth callback validates a one-time state and PKCE code verifier.
-- It accepts only whitelisted transport commands, validates parameters and enforces JSON content type for mutations.
-- CORS allows file-widget ("file://" and "null") origins and the local companion origin, not arbitrary websites. Since sandboxed pages can also have a null origin, the independent pairing key is essential.
-- Windows-only DPAPI encrypts **only** the Spotify refresh token in user AppData; the short-lived access token stays in process memory. Non-Windows development mode remains memory-only. No OAuth secrets go to GitHub, task arguments, or logs.
-- This project is personal/noncommercial. Spotify terms, API availability and development-mode quotas apply.
+**Queue jump is not queue editing.** You can tap one of the first five upcoming entries to advance toward that track. Because Spotify has no atomic “jump to queue position” endpoint, the companion issues bounded, sequential **Next** commands and verifies each result. Earlier songs are **skipped/consumed**, and a changed device, queue, repeated track, or unexpected response can stop the jump partway through. Rows beyond the first five cannot be jumped to.
 
-## Verified integration status
+## Security and privacy
 
-As of 2026-10-19 (feature branch `feat/spotify-edge-dashboard`):
+The companion listens on **127.0.0.1:8765**, uses Spotify's PKCE login, restricts widget API access with a per-install pairing key, and checks browser host/origin information. The widget's network permission is limited to that loopback address and port; album art is proxied by the companion.
 
-- **Verified live (user acceptance):** iCUE package installed on a physical XENEON EDGE; user confirms live Spotify playback, touchscreen play/pause without the previously reproduced intermittent 403, real queue scrolling without position resets, **seeking, volume, standard shuffle, and repeat playback behavior**. Repeat worked before the visual improvement, but its exact mode was not obvious on-screen.
-- **Verified via local companion:** Spotify PKCE authentication and real playback/queue requests return successfully, with 20 actual upcoming tracks observed and album-art proxy responding successfully.
-- **Automated checks:** the initial code head `4c57d512ecc2fc0afb61bcab875a31c2969d1aea` passed 15 tests and official iCUE validation (Actions `39237872256`). The subsequent 0.1.1 display update adds regression coverage for distinct repeat states, mode cycling, and Smart Shuffle status messaging; refer to the current PR head's Actions run for exact-head validation.
-- **Not individually verified on hardware:** newly introduced repeat-mode visual indicators in 0.1.1, complete layout/readability, disconnect/recovery scenarios, and OAuth token refresh. Behavioral repeat, seek, volume and shuffle have been user-confirmed.
-- **Runtime constraint:** the companion still must keep running for iCUE to display live playback. DPAPI-backed refresh token restoration and console-free at-logon autostart passed real Windows restart/reboot acceptance on 2026-10-19. The local pairing key remains valid.
+On Windows, the Spotify refresh token is protected by **DPAPI CurrentUser** in `%LOCALAPPDATA%\iCueSpotifyIntegration\spotify-refresh.dpapi`. The pairing key is stored separately at `%LOCALAPPDATA%\iCueSpotifyIntegration\pairing-key`. Neither belongs in Git or a screenshot. DPAPI protects against casual disclosure on disk; it does not protect secrets from malicious software already running as the same Windows user. A change of Windows profile or revoked Spotify authorization may require signing in again.
+
+## For developers
+
+The code is organized as a dependency-free Node companion (`companion/`), a standalone iCUE widget (`widget/`), Windows autostart scripts (`scripts/`), and automated tests (`test/`).
+
+```powershell
+npm run check
+npm test
+```
+
+To validate or build a widget package yourself, install Corsair's widget CLI separately:
+
+```powershell
+npm install -g icuewidget-cli
+icuewidget validate widget
+icuewidget package widget
+```
+
+The CI workflow also builds a downloadable widget artifact on pull requests. The [v0.1.4-rc.1 release](https://github.com/danielbrownjr/iCue-Spotify-Integration/releases/tag/v0.1.4-rc.1) contains the already-tested widget package. **The RC tag predates the later MIT documentation merge; the current source and license live on `main`.**
 
 ## Known limitations
 
-- Requires a running local companion; opt-in Windows at-logon Task Scheduler registration is available in the integration draft, but physical reboot acceptance passed on 2026-10-19.
-- Touch play/pause, queue scrolling, seeking, volume, standard shuffle, and repeat behavior are user-confirmed on the XENEON EDGE. The new 0.1.1 repeat indicator still needs physical visual acceptance. Recovery behavior and actual token refresh have **not** been individually verified.
-- No queue reorder/removal: Spotify does not offer general queue editing endpoints.
-- Spotify reports some state asynchronously, so skip/pause may take a polling interval to update.
-- Artwork URL host support is restricted to known Spotify CDN hosts and may need adjustment if Spotify changes hosts.
-- No automatic Spotify device-selection UI in this first slice.
-- Smart Shuffle cannot be distinguished or explicitly selected through the current Spotify Web API; shuffle control stays boolean on/off.
-- Queue-row play uses a maximum of five verified Next commands; it consumes earlier songs and may stop after a partial skip if Spotify changes the queue or device. It cannot guarantee an atomic position jump. The user's v0.1.3 queue jump is hardware-accepted; this remains a bounded best-effort operation.
+This was built and tested on a physical XENEON EDGE, but installations on other PCs and Spotify accounts may uncover setup issues. It requires the companion to remain running and an active Spotify playback device. Spotify API access, developer-mode restrictions, queue responses, and rate limits are outside this project's control. There is no automatic device picker, general queue reorder/removal, or separate Smart Shuffle control. Unexpected device or queue changes can interrupt a skip-through operation.
+
+## License
+
+[MIT](LICENSE). This is an unofficial community project, not affiliated with or endorsed by Corsair or Spotify. Their names and trademarks, and album artwork returned by Spotify, are not licensed by this repository.
