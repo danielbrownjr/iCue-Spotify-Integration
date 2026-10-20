@@ -6,4 +6,6 @@ node_modules/
 .DS_Store
 coverage/
 companion/pairing-key
-companion/token*
+companion/token
+companion/token*.json
+companion/*.dpapi
