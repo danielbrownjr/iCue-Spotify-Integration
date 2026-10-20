@@ -30,6 +30,9 @@ if ($Status) {
         Write-Host "Autostart task status: $($Task.State)"
         Write-Host "Task principal: $($Task.Principal.UserId)"
         Write-Host "Configured executable: $($Task.Actions[0].Execute)"
+        if (-not (Test-Path -LiteralPath $Task.Actions[0].Execute -PathType Leaf)) {
+            Write-Warning 'The registered task executable is missing. Startup will fail until reinstalled from native PowerShell.'
+        }
         if ($Task.Actions[0].Execute -match '(?i)companion-hidden-[a-f0-9]+\.exe$') {
             Write-Host 'Launcher: console-free Windows application supervisor.'
         } elseif ($Task.Actions[0].Execute -match '(?i)powershell\.exe$') {
@@ -53,6 +56,7 @@ if ($Remove) {
 }
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'installation-safety.ps1')
 $SourceDir = Join-Path $RepoRoot 'companion'
 foreach ($File in @('server.mjs', 'queue-jump.mjs', 'token-store.mjs')) {
     if (-not (Test-Path (Join-Path $SourceDir $File))) {
@@ -66,8 +70,31 @@ if ($NodeMajor -lt 22) {
     throw 'Node.js 22 or newer is required.'
 }
 
+# Validate source and compile a launcher before touching the installed app files.
+# A failed source check/compiler must never poison the already-working task.
+Assert-CompanionSourceSyntax -Node $Node -SourceDir $SourceDir
+$PrebuiltLauncher = $null
+if ($InstallHidden) {
+    $NativeSource = Join-Path $PSScriptRoot 'companion-hidden.cs'
+    $BuildScript = Join-Path $PSScriptRoot 'build-hidden-launcher.ps1'
+    if (-not (Test-Path -LiteralPath $NativeSource -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $BuildScript -PathType Leaf)) {
+        throw 'Missing native console-free launcher sources.'
+    }
+    $PrebuiltLauncher = Join-Path ([IO.Path]::GetTempPath()) ('icue-launcher-' + [guid]::NewGuid().ToString('N') + '.exe')
+    try {
+        & $BuildScript -Source $NativeSource -Output $PrebuiltLauncher
+    } catch {
+        Remove-Item -LiteralPath $PrebuiltLauncher -Force -ErrorAction SilentlyContinue
+        throw
+    }
+}
+
 $InstallDir = Join-Path $env:LOCALAPPDATA 'iCueSpotifyIntegration\app'
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+# MSIX hosts can transparently redirect AppData into Packages/.../LocalCache.
+# Resolve the real filesystem directory before writing or registering a task.
+Assert-RealAppDataInstallDirectory -InstallDir $InstallDir | Out-Null
 Copy-Item -LiteralPath $SourceDir -Destination $InstallDir -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'package.json') -Destination $InstallDir -Force
 if ($InstallHidden) {
@@ -78,13 +105,12 @@ if ($InstallHidden) {
     $ScriptDir = Join-Path $InstallDir 'scripts'
     New-Item -ItemType Directory -Path $ScriptDir -Force | Out-Null
     Copy-Item -LiteralPath $LauncherSource -Destination $ScriptDir -Force
-    $NativeSource = Join-Path $PSScriptRoot 'companion-hidden.cs'
     Copy-Item -LiteralPath $NativeSource -Destination $ScriptDir -Force
     $SourceVersion = (Get-FileHash -LiteralPath $NativeSource -Algorithm SHA256).Hash.Substring(0, 16).ToLowerInvariant()
     # Versioned path permits updating registration without replacing a running EXE.
     $LauncherExecutable = Join-Path $ScriptDir ("companion-hidden-$SourceVersion.exe")
     if (-not (Test-Path -LiteralPath $LauncherExecutable -PathType Leaf)) {
-        & (Join-Path $PSScriptRoot 'build-hidden-launcher.ps1') -Source $NativeSource -Output $LauncherExecutable
+        Copy-Item -LiteralPath $PrebuiltLauncher -Destination $LauncherExecutable -Force
     }
 }
 
@@ -103,12 +129,19 @@ if ($InstallHidden) {
 }
 $Trigger = New-ScheduledTaskTrigger -AtLogOn -User $CurrentUser
 $Principal = New-ScheduledTaskPrincipal -UserId $CurrentUser -LogonType Interactive -RunLevel Limited
-$Settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Seconds 0)
-Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Force | Out-Null
+$Settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Seconds 0) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+try {
+    Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Force | Out-Null
+} finally {
+    if ($PrebuiltLauncher) {
+        Remove-Item -LiteralPath $PrebuiltLauncher -Force -ErrorAction SilentlyContinue
+    }
+}
 
 Write-Host "Autostart registered for $CurrentUser at the next Windows sign-in."
 Write-Host "Program: $Entry"
 if ($InstallHidden) { Write-Host 'Mode: console-free (supervised hidden Node child).' }
 else { Write-Host 'Mode: original visible console (rollback).' }
 Write-Host 'To revert the launcher only, run -Install from this checkout; no credentials are removed.'
-Write-Host 'Existing running companion was not restarted. To apply updates, rerun -Install and restart after saving work.'
+$ReinstallMode = if ($InstallHidden) { '-InstallHidden' } else { '-Install' }
+Write-Host "Existing running companion was not restarted. For future updates rerun $ReinstallMode from this checkout and restart after saving work."
