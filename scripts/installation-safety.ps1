@@ -49,3 +49,19 @@ function Assert-RealAppDataInstallDirectory {
     }
     return $ActualPath
 }
+
+
+function Assert-CompanionSourceSyntax {
+    param(
+        [Parameter(Mandatory = $true)][string]$Node,
+        [Parameter(Mandatory = $true)][string]$SourceDir
+    )
+    $Entry = Join-Path $SourceDir 'server.mjs'
+    if (-not (Test-Path -LiteralPath $Entry -PathType Leaf)) {
+        throw 'Companion source entrypoint not found.'
+    }
+    & $Node --check $Entry
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Companion source syntax check failed; installed application was not changed.'
+    }
+}
