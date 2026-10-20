@@ -2,7 +2,7 @@
 
 A custom iCUE widget for the Corsair XENEON EDGE that shows **what's playing and what's actually next in Spotify**. It includes album art, song progress, volume, shuffle, repeat, and a scrollable queue. You can tap one of the first five upcoming songs to skip forward through Spotify's queue.
 
-The widget was tested on a physical XENEON EDGE at **840 × 696 (medium horizontal)**. It talks to a small, local Node.js companion on your Windows PC. No cloud service or npm runtime dependencies are required, but initial setup is manual.
+The widget was tested on a physical XENEON EDGE at **840 × 696 (medium horizontal)**. It talks to a small, local Node.js companion on your Windows PC. No separate project-hosted service or npm runtime dependencies are required, but the companion does need Spotify's Web API and initial setup is manual.
 
 **Current download:** [v0.1.4-rc.1 release candidate](https://github.com/danielbrownjr/iCue-Spotify-Integration/releases/tag/v0.1.4-rc.1) · [Download the .icuewidget directly](https://github.com/danielbrownjr/iCue-Spotify-Integration/releases/download/v0.1.4-rc.1/spotify-queue-0.1.4.icuewidget)
 
