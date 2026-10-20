@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spotify Queue Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="resources/icon.svg" />
+  <meta name="x-icue-property" content="pairingKey" data-label="Companion pairing key" data-type="textfield" data-default="''" />
+  <meta name="x-icue-property" content="accentColor" data-label="Accent color" data-type="color" data-default="'#ff9e3b'" />
+  <meta name="x-icue-property" content="backgroundColor" data-label="Background color" data-type="color" data-default="'#000000'" />
+  <link rel="stylesheet" href="styles/widget.css" />
+</head>
+<body>
+  <main class="dashboard" aria-label="Spotify dashboard">
+    <header class="topbar">
+      <div class="brand"><span class="signal"></span> SPOTIFY <span class="label">/ NOW PLAYING</span></div>
+      <span id="status" class="status" role="status">Starting…</span>
+    </header>
+
+    <section class="player" aria-label="Now playing">
+      <div class="art-frame"><img id="art" alt="Album artwork" hidden><span id="art-fallback" aria-hidden="true">♫</span></div>
+      <div class="track-details">
+        <div class="eyebrow">PLAYING ON <span id="device">—</span></div>
+        <h1 id="title">Nothing playing</h1>
+        <p id="artist">Connect your Spotify account to begin</p>
+        <p id="album" class="album"></p>
+        <div class="transport" aria-label="Playback controls">
+          <button id="previous" aria-label="Previous track" title="Previous track">⏮</button>
+          <button id="play" class="primary" aria-label="Play or pause" title="Play or pause">▶</button>
+          <button id="next" aria-label="Next track" title="Next track">⏭</button>
+          <button id="shuffle" aria-label="Toggle shuffle" title="Shuffle">⤨</button>
+          <button id="repeat" aria-label="Repeat off" title="Repeat off" aria-pressed="false" data-mode="off">↻<sup id="repeat-one" aria-hidden="true" hidden>1</sup></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="seek" aria-label="Song progress">
+      <span id="elapsed">0:00</span>
+      <input id="progress" type="range" min="0" max="1000" value="0" aria-label="Seek to position">
+      <span id="duration">0:00</span>
+    </section>
+
+    <section class="queue-section" aria-label="Upcoming queue">
+      <div class="queue-heading">
+        <h2>UP NEXT <span id="queue-count"></span></h2>
+        <div class="volume">
+          <span aria-hidden="true">♫</span>
+          <input id="volume" type="range" min="0" max="100" value="50" aria-label="Spotify volume">
+          <span id="volume-number">—</span>
+        </div>
+      </div>
+      <div id="queue" class="queue-list" aria-live="off">
+        <p class="placeholder">Your next tracks will appear here.</p>
+      </div>
+      <div id="queue-warning" class="queue-warning" hidden>Queue temporarily unavailable</div>
+    </section>
+  </main>
+  <script src="scripts/widget.js"></script>
+</body>
+</html>
