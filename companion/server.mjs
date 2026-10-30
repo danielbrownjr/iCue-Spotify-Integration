@@ -7,6 +7,7 @@ import { SCOPES, REDIRECT_URI, SPOTIFY_API, normalizePlayback } from "./spotify.
 import { performControl } from "./control.mjs";
 import { createRefreshTokenStore } from "./token-store.mjs";
 import { queueSnapshot, performQueueJump } from "./queue-jump.mjs";
+import { parseSpotifyRateLimit, spotifyRateLimitError } from "./spotify-rate-limit.mjs";
 
 import { allowWidgetOrigin } from "./cors.mjs";
 
@@ -24,6 +25,7 @@ let authRequest = null;
 let playbackCache = { expires: 0, value: null };
 let queueCache = { expires: 0, value: null };
 let spotifyBackoffUntil = 0;
+let lastSpotify429 = null;
 let lastArtwork = null;
 let queueJumpPending = false;
 
@@ -151,13 +153,21 @@ async function getAccessToken() {
 
 async function spotifyRequest(path, method = "GET") {
   if (Date.now() < spotifyBackoffUntil)
-    throw Object.assign(new Error("Spotify rate-limited; retry later"), { status: 429 });
+    throw spotifyRateLimitError(lastSpotify429, (spotifyBackoffUntil - Date.now()) / 1000);
   const token = await getAccessToken();
   const response = await fetch(SPOTIFY_API + path, {
     method, headers: { Authorization: "Bearer " + token }
   });
   if (response.status === 429) {
-    spotifyBackoffUntil = Date.now() + Math.max(1, Number(response.headers.get("retry-after")) || 10) * 1000;
+    const details = await parseSpotifyRateLimit(response);
+    spotifyBackoffUntil = Math.max(spotifyBackoffUntil, Date.now() + details.backoffSeconds * 1000);
+    lastSpotify429 = details;
+    // Only whitelisted metadata: never log the Authorization header, token, or raw Spotify body.
+    console.warn("Spotify HTTP 429:", path,
+      "reason=" + (details.reason || "unspecified"),
+      "retry-after=" + (details.retryAfterSeconds ?? "absent"),
+      "backoff=" + details.backoffSeconds + "s");
+    throw spotifyRateLimitError(details, (spotifyBackoffUntil - Date.now()) / 1000);
   }
   if (response.status === 204) return null;
   if (!response.ok) throw Object.assign(new Error("Spotify returned HTTP " + response.status),
