@@ -2,6 +2,7 @@
 (() => {
   "use strict";
   const API = "http://127.0.0.1:8765";
+  const STATE_POLL_MS = 15000;
   const elements = Object.fromEntries(["art", "art-fallback", "status", "device", "title", "artist",
     "album", "play", "previous", "next", "shuffle", "repeat", "progress", "elapsed", "duration",
     "queue", "queue-count", "queue-warning", "volume", "volume-number", "repeat-one"]
@@ -13,6 +14,9 @@
   let queueJumpInProgress = false;
   let queueJumpWarning = null;
   let seeking = false;
+  let nextPollAt = 0;
+  let cooldownUntil = 0;
+  let refreshInFlight = null;
 
   function setting(name, fallback) {
     const value = window[name];
@@ -161,19 +165,43 @@
     updateProgress();
   }
 
-  async function refresh() {
+  function honorRateLimit(response, data) {
+    if (response.status !== 429) return;
+    const seconds = Number(data?.retryAfterSeconds);
+    const delay = Number.isFinite(seconds) && seconds > 0
+      ? Math.min(604800, Math.ceil(seconds)) * 1000 : 30000;
+    cooldownUntil = Math.max(cooldownUntil, Date.now() + delay);
+  }
+  async function refresh(force = false) {
     applyStyle();
     if (!key()) { status("Set pairing key in widget settings", true); return; }
-    try {
-      const response = await fetch(API + "/api/state", {
-        headers: { "X-Widget-Key": key() }, cache: "no-store"
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "HTTP " + response.status);
-      render(data);
-    } catch (error) {
-      status(error.message || "Companion offline", true);
+    if (Date.now() < cooldownUntil) return;
+    if (refreshInFlight) {
+      if (!force) return refreshInFlight;
+      // After a mutation, do not let an older in-flight poll hide its result.
+      await refreshInFlight;
+      if (Date.now() < cooldownUntil) return;
     }
+    if (!force && Date.now() < nextPollAt) return;
+    nextPollAt = Date.now() + STATE_POLL_MS;
+    let pending;
+    pending = (async () => {
+      try {
+        const response = await fetch(API + "/api/state", {
+          headers: { "X-Widget-Key": key() }, cache: "no-store"
+        });
+        const data = await response.json();
+        honorRateLimit(response, data);
+        if (!response.ok) throw new Error(data.error || "HTTP " + response.status);
+        render(data);
+      } catch (error) {
+        status(error.message || "Companion offline", true);
+      }
+    })().finally(() => {
+      if (refreshInFlight === pending) refreshInFlight = null;
+    });
+    refreshInFlight = pending;
+    return pending;
   }
   async function jumpToQueue(index, track) {
     if (waitingOnCommand || index >= 5 || !track?.uri || !lastState?.queueSnapshot) return;
@@ -190,6 +218,7 @@
         body: JSON.stringify({ index, snapshot })
       });
       const result = await response.json();
+      honorRateLimit(response, result);
       if (!response.ok) throw new Error(result.error || "Spotify could not verify queue jump");
     } catch (error) {
       // A successful earlier skip cannot be undone. Keep the failure visible
@@ -199,7 +228,7 @@
       queueJumpInProgress = false;
       waitingOnCommand = false;
       if (failure) queueJumpWarning = { message: failure, expires: Date.now() + 60000 };
-      await refresh();
+      await refresh(true);
       renderWarning(lastState?.queueError);
       if (failure) status("Queue jump stopped (details below)", true);
     }
@@ -213,9 +242,10 @@
         body: JSON.stringify({ action, value })
       });
       const result = await response.json();
+      honorRateLimit(response, result);
       if (!response.ok) throw new Error(result.error || "Command failed");
       await new Promise((resolve) => setTimeout(resolve, 350));
-      await refresh();
+      await refresh(true);
     } catch (error) { status(error.message, true); }
     finally { waitingOnCommand = false; }
   }
@@ -247,6 +277,6 @@
   if (typeof iCUE_initialized !== "undefined" && iCUE_initialized) applyStyle();
   applyStyle();
   refresh();
-  setInterval(refresh, 3500);
+  setInterval(refresh, STATE_POLL_MS);
   setInterval(updateProgress, 1000);
 })();
