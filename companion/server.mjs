@@ -190,6 +190,9 @@ async function readState() {
   if (Date.now() < spotifyBackoffUntil)
     throw spotifyRateLimitError(lastSpotify429, (spotifyBackoffUntil - Date.now()) / 1000);
   const state = await stateReader.readState();
+  // A concurrent control can establish cooldown while the reads await Spotify.
+  if (Date.now() < spotifyBackoffUntil)
+    throw spotifyRateLimitError(lastSpotify429, (spotifyBackoffUntil - Date.now()) / 1000);
   state.queueJumpPending = queueJumpPending;
   const art = state.track?.image;
   if (art && art.startsWith("https://")) lastArtwork = art;

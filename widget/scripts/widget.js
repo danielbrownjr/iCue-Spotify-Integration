@@ -193,6 +193,9 @@
         const data = await response.json();
         honorRateLimit(response, data);
         if (!response.ok) throw new Error(data.error || "HTTP " + response.status);
+        // A control can discover a quota cooldown while this older poll is
+        // still in flight. Do not overwrite its warning with cached LIVE.
+        if (Date.now() < cooldownUntil) return;
         render(data);
       } catch (error) {
         status(error.message || "Companion offline", true);

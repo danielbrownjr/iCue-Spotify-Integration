@@ -25,7 +25,7 @@ class FakeElement {
   append(...nodes) { this.children = [...(this.children || []), ...nodes]; }
 }
 
-function dashboardHarness() {
+function dashboardHarness({ stateResponse } = {}) {
   let nowMs = Date.now();
   class FakeDate extends Date { static now() { return nowMs; } }
   let stateReads = 0;
@@ -48,6 +48,7 @@ function dashboardHarness() {
   const fetch = async (url, options) => {
     if (url.endsWith("/api/state")) {
       stateReads++;
+      if (stateResponse) return stateResponse(stateReads, { ...state });
       if (state.httpError) return {
         ok: false, status: state.httpError.status,
         json: async () => ({ error: state.httpError.error, retryAfterSeconds: state.httpError.retryAfterSeconds })
@@ -63,6 +64,10 @@ function dashboardHarness() {
     if (url.endsWith("/api/control")) {
       const command = JSON.parse(options.body);
       commands.push(command);
+      if (state.controlError) return {
+        ok: false, status: state.controlError.status,
+        json: async () => ({ error: state.controlError.error, retryAfterSeconds: state.controlError.retryAfterSeconds })
+      };
       if (command.action === "repeat") state.repeat = command.value;
       return { ok: true, json: async () => ({ ok: true }) };
     }
@@ -206,7 +211,7 @@ test("frequent iCUE events and timer ticks do not bypass 15-second local polling
   assert.equal(f.stateReads(), 1);
   assert.ok(f.intervals.has(15000));
   assert.ok(f.intervals.has(1000));
-  for (let i = 0; i < 25; i++) f.window.icueEvents.onDataUpdated();
+  for (let i = 0; i < 2000; i++) f.window.icueEvents.onDataUpdated();
   await settle();
   assert.equal(f.stateReads(), 1);
   f.advance(14999);
@@ -216,6 +221,26 @@ test("frequent iCUE events and timer ticks do not bypass 15-second local polling
   f.advance(1);
   f.intervals.get(15000)();
   await settle();
+  assert.equal(f.stateReads(), 2);
+});
+
+test("an earlier successful poll cannot clear a command's active quota warning", async () => {
+  let releasePoll;
+  const f = dashboardHarness({ stateResponse: (count, state) => {
+    const response = { ok: true, status: 200, json: async () => state };
+    return count === 2 ? new Promise(resolve => { releasePoll = () => resolve(response); }) : response;
+  } });
+  await settle();
+  f.advance(15000);
+  f.window.icueEvents.onDataUpdated();
+  await settle();
+  f.state.controlError = { status: 429, retryAfterSeconds: 100, error: "Spotify quota exceeded" };
+  f.elements.play.listeners.get("click")();
+  await settle();
+  assert.match(f.elements.status.textContent, /quota exceeded/);
+  releasePoll();
+  await settle();
+  assert.match(f.elements.status.textContent, /quota exceeded/, "a stale successful poll must not show LIVE during cooldown");
   assert.equal(f.stateReads(), 2);
 });
 
