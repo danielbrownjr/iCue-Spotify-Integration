@@ -32,5 +32,6 @@ export function spotifyRateLimitError(details, remainingSeconds) {
     ? "Spotify Development Mode API quota exceeded (QUOTA_EXCEEDED)"
     : "Spotify returned HTTP 429 (reason not specified)";
   const seconds = Math.max(1, Math.ceil(remainingSeconds));
-  return Object.assign(new Error(cause + "; retry in about " + seconds + "s"), { status: 429 });
+  return Object.assign(new Error(cause + "; retry in about " + seconds + "s"),
+    { status: 429, retryAfterSeconds: seconds });
 }
