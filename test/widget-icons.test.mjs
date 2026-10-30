@@ -27,3 +27,13 @@ test("play/pause icon switches without replacing SVG DOM", () => {
   assert.match(css, /#play\[data-playing="true"\] \.icon-play/);
   assert.match(css, /#play\[data-playing="true"\] \.icon-pause/);
 });
+
+test("iCUE validator can locate the HTML title without matching a body header tag", () => {
+  const headEnd = html.indexOf("</head>");
+  assert.ok(headEnd >= 0, "missing document head");
+  assert.match(html.slice(0, headEnd), /<title>Spotify Queue Dashboard<\/title>/);
+  // The iCUE CLI treats the literal prefix "<head" in body markup as the
+  // start of the document head, so <header> causes a false missing-title error.
+  assert.doesNotMatch(html.slice(headEnd + "</head>".length), /<head/i);
+  assert.match(html, /<div class="topbar">/);
+});
