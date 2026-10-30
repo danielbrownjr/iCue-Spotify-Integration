@@ -3,10 +3,11 @@ import { randomBytes, createHash } from "node:crypto";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { SCOPES, REDIRECT_URI, SPOTIFY_API, normalizePlayback } from "./spotify.mjs";
+import { SCOPES, REDIRECT_URI, SPOTIFY_API } from "./spotify.mjs";
 import { performControl } from "./control.mjs";
 import { createRefreshTokenStore } from "./token-store.mjs";
-import { queueSnapshot, performQueueJump } from "./queue-jump.mjs";
+import { performQueueJump } from "./queue-jump.mjs";
+import { createStateReader } from "./state-reader.mjs";
 import { parseSpotifyRateLimit, spotifyRateLimitError } from "./spotify-rate-limit.mjs";
 
 import { allowWidgetOrigin } from "./cors.mjs";
@@ -22,8 +23,7 @@ let pairingKey;
 let credentials = null;
 let refreshInFlight = null;
 let authRequest = null;
-let playbackCache = { expires: 0, value: null };
-let queueCache = { expires: 0, value: null };
+const stateReader = createStateReader(spotifyRequest);
 let spotifyBackoffUntil = 0;
 let lastSpotify429 = null;
 let lastArtwork = null;
@@ -43,6 +43,13 @@ async function loadPairingKey() {
     pairingKey = randomString();
     await writeFile(file, pairingKey + "\n", { flag: "wx", mode: 0o600 });
   }
+}
+
+function errorBody(error) {
+  const body = { error: error.message };
+  if (error.status === 429 && Number.isFinite(error.retryAfterSeconds))
+    body.retryAfterSeconds = error.retryAfterSeconds;
+  return body;
 }
 
 function reply(res, status, data, headers = {}) {
@@ -109,7 +116,7 @@ async function callback(url, res) {
     if (tokenStore.supported) await tokenStore.save(tokens.refresh_token);
     credentials = { access: tokens.access_token, refresh: tokens.refresh_token,
       expires: Date.now() + tokens.expires_in * 1000 };
-    playbackCache.expires = queueCache.expires = 0;
+    stateReader.invalidate();
     html(res, "Spotify connected", "You can close this tab. Your XENEON EDGE widget can now load the live queue.");
   } catch (error) {
     console.error("Spotify authorization failed:", error.message);
@@ -176,30 +183,13 @@ async function spotifyRequest(path, method = "GET") {
   return response.json();
 }
 
-async function cached(cache, lifetime, read) {
-  if (Date.now() < cache.expires) return cache.value;
-  // Do not flood Spotify when the widget refreshes or multiple clients are open.
-  if (!cache.pending) cache.pending = read().then((value) => {
-    cache.value = value;
-    cache.expires = Date.now() + lifetime;
-    return value;
-  }).finally(() => { cache.pending = null; });
-  return cache.pending;
-}
-
 async function readState() {
   if (!credentials) return { authenticated: false, queue: [], active: false };
-  const playback = await cached(playbackCache, 3000, () => spotifyRequest("/me/player"));
-  let queue, queueError = null;
-  try {
-    queue = await cached(queueCache, 15000, () => spotifyRequest("/me/player/queue"));
-  } catch (error) {
-    queueError = error.message;
-    queue = queueCache.value;
-  }
-  const state = normalizePlayback(playback, queue);
-  state.queueError = queueError;
-  state.queueSnapshot = queueError ? null : queueSnapshot(playback, queue);
+  // Never represent cached playback as live while Spotify is known to be
+  // enforcing a quota/rate-limit cooldown.
+  if (Date.now() < spotifyBackoffUntil)
+    throw spotifyRateLimitError(lastSpotify429, (spotifyBackoffUntil - Date.now()) / 1000);
+  const state = await stateReader.readState();
   state.queueJumpPending = queueJumpPending;
   const art = state.track?.image;
   if (art && art.startsWith("https://")) lastArtwork = art;
@@ -244,7 +234,7 @@ async function handle(req, res) {
     return reply(res, 401, { error: "Widget pairing key missing or incorrect" });
   if (url.pathname === "/api/state" && req.method === "GET") {
     try { return reply(res, 200, await readState()); }
-    catch (error) { return reply(res, error.status || 502, { error: error.message }); }
+    catch (error) { return reply(res, error.status || 502, errorBody(error)); }
   }
   if (url.pathname === "/api/queue-jump" && req.method === "POST") {
     if (!req.headers["content-type"]?.startsWith("application/json"))
@@ -254,11 +244,11 @@ async function handle(req, res) {
     try {
       const body = await readBody(req);
       const result = await performQueueJump(body, spotifyRequest);
-      playbackCache.expires = queueCache.expires = 0;
+      stateReader.invalidate();
       return reply(res, 200, result);
     } catch (error) {
-      playbackCache.expires = queueCache.expires = 0;
-      return reply(res, error.status || 502, { error: error.message });
+      stateReader.invalidate();
+      return reply(res, error.status || 502, errorBody(error));
     } finally {
       queueJumpPending = false;
     }
@@ -270,10 +260,10 @@ async function handle(req, res) {
     try {
       const body = await readBody(req);
       await performControl(body.action, body.value, spotifyRequest);
-      playbackCache.expires = queueCache.expires = 0;
+      stateReader.invalidate();
       return reply(res, 200, { ok: true });
     } catch (error) {
-      return reply(res, error.status || 400, { error: error.message });
+      return reply(res, error.status || 400, errorBody(error));
     }
   }
   return reply(res, 404, { error: "Not found" });
